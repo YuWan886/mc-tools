@@ -1,6 +1,6 @@
 {
     "api": {
-        "key": "$2a$10$n/P4q1T/gAg2OUlhDE27zeq98psvk5jH5M3B6s.E2XRy6a2Ym88kW", 
+        "key": "xxx", 
         "base_url": "https://api.curseforge.com/v1"
     },
     "search": {
