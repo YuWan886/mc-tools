@@ -1,0 +1,37 @@
+name: Generate and Deploy
+
+on:
+  schedule:
+    - cron: '0 0 * * *'
+  workflow_dispatch:
+
+jobs:
+  generate-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.x'
+
+    - name: Install dependencies and run scripts
+      run: |
+        # Loop through each subfolder in scripts/
+        for dir in scripts/*/; do
+          if [ -f "$dir/requirements.txt" ] && [ -f "$dir/main.py" ]; then
+            echo "Processing $dir"
+            python -m pip install --upgrade pip
+            pip install -r "$dir/requirements.txt"
+            python "$dir/main.py"
+          fi
+        done
+
+    - name: Deploy to GitHub Pages
+      uses: peaceiris/actions-gh-pages@v3
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        publish_dir: ./docs

@@ -1,0 +1,18 @@
+{
+    "api": {
+        "key": "$2a$10$n/P4q1T/gAg2OUlhDE27zeq98psvk5jH5M3B6s.E2XRy6a2Ym88kW", 
+        "base_url": "https://api.curseforge.com/v1"
+    },
+    "search": {
+        "gameId": 432,
+        "searchFilter": "tacz",
+        "classId": 4546,
+        "pageSize": 50,
+        "sortField": 1,
+        "sortOrder": "desc"
+    },
+    "output": {
+        "filename": "tacz_gun_pack.html",
+        "title": "永恒枪械工坊：零 (TaCZ) 枪包列表"
+    }
+}
