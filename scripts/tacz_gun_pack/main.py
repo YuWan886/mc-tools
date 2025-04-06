@@ -747,11 +747,12 @@ def parse_arguments():
     parser.add_argument('--config', help='指定配置文件路径', default=CONFIG_FILE)
     parser.add_argument('--search', help='搜索关键词', default=None)
     parser.add_argument('--output', help='输出文件名', default=None)
+    parser.add_argument('--non-interactive', help='非交互模式，不等待用户输入', action='store_true')
     return parser.parse_args()
 
 def main():
     """主函数"""
-    global CONFIG_FILE  # Moved to the top of the function
+    global CONFIG_FILE
     
     print("=" * 50)
     print("CurseForge项目爬取工具 - 启动")
@@ -783,8 +784,8 @@ def main():
     if not config['api']['key'] or config['api']['key'] == "xxx":
         print("请先在配置文件中设置CurseForge API密钥")
         print(f"配置文件路径: {os.path.abspath(CONFIG_FILE)}")
-        # 等待用户按键退出
-        input("按任意键退出...")
+        if not args.non_interactive:
+            input("按任意键退出...")
         sys.exit(1)
     
     print(f"正在获取{config['search']['searchFilter']}相关数据...")
@@ -801,8 +802,12 @@ def main():
     print("任务完成!")
     print("=" * 50)
     
-    # 等待用户按键退出，这样窗口不会立即关闭
-    input("按回车键退出...")
+    # 仅在交互模式下等待用户输入
+    if not args.non_interactive:
+        try:
+            input("按回车键退出...")
+        except EOFError:
+            pass  # 在非交互环境中忽略EOF错误
 
 if __name__ == "__main__":
     try:
@@ -813,4 +818,9 @@ if __name__ == "__main__":
         print(f"程序发生错误: {e}")
         import traceback
         traceback.print_exc()
-        input("按回车键退出...")
+        args = parse_arguments()
+        if not args.non_interactive:
+            try:
+                input("按回车键退出...")
+            except EOFError:
+                pass  # 在非交互环境中忽略EOF错误
