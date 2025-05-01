@@ -14,11 +14,15 @@ ENCODING = "utf-8"
 
 
 def create_folders() -> None:
-    """创建必要的文件夹结构"""
-    Path(JAVA_PROJECTS_DIR).mkdir(exist_ok=True)
-    Path(VP_DIR).mkdir(exist_ok=True)
-    Path(LANG_DIR).mkdir(exist_ok=True)
-    print(f"已创建/验证文件夹: {JAVA_PROJECTS_DIR}, {VP_DIR}, {LANG_DIR}")
+    """创建必要的文件夹结构，处理权限错误"""
+    for folder in [JAVA_PROJECTS_DIR, VP_DIR, LANG_DIR]:
+        try:
+            Path(folder).mkdir(parents=True, exist_ok=True)
+            print(f"已创建/验证文件夹: {folder}")
+        except (PermissionError, OSError) as e:
+            print(f"无法创建文件夹 {folder}：{e}")
+            print("请检查目录权限或路径是否有效")
+            raise SystemExit(1)
 
 
 def extract_strings_from_java(java_file_path: str) -> List[str]:
@@ -56,34 +60,37 @@ def generate_json_from_java() -> None:
     input_dir = JAVA_PROJECTS_DIR
     output_dir = VP_DIR
     generated_files = []
-    for project_name in os.listdir(input_dir):
-        project_path = os.path.join(input_dir, project_name)
-        if not os.path.isdir(project_path):
-            continue
-        class_data = []
-        for root, _, files in os.walk(project_path):
-            for file in files:
-                if file.endswith(".java"):
-                    java_file_path = os.path.join(root, file)
-                    relative_path = os.path.relpath(java_file_path, project_path)
-                    class_path = os.path.splitext(relative_path)[0].replace(os.sep, "/")
-                    strings = extract_strings_from_java(java_file_path)
-                    if strings:
-                        class_data.append(
-                            {
-                                "target_class": {"name": class_path, "method": ""},
-                                "pairs": [{"key": s, "value": s} for s in strings],
-                            }
-                        )
-        if class_data:
-            output_json_path = os.path.join(output_dir, f"{project_name}.json")
-            json_data = create_json_template(project_name, class_data)
-            try:
-                with open(output_json_path, "w", encoding=ENCODING) as f:
-                    json.dump(json_data, f, ensure_ascii=False, indent=2)
-                generated_files.append(output_json_path)
-            except Exception as e:
-                print(f"写入 {output_json_path} 出错：{e}")
+    try:
+        for project_name in os.listdir(input_dir):
+            project_path = os.path.join(input_dir, project_name)
+            if not os.path.isdir(project_path):
+                continue
+            class_data = []
+            for root, _, files in os.walk(project_path):
+                for file in files:
+                    if file.endswith(".java"):
+                        java_file_path = os.path.join(root, file)
+                        relative_path = os.path.relpath(java_file_path, project_path)
+                        class_path = os.path.splitext(relative_path)[0].replace(os.sep, "/")
+                        strings = extract_strings_from_java(java_file_path)
+                        if strings:
+                            class_data.append(
+                                {
+                                    "target_class": {"name": class_path, "method": ""},
+                                    "pairs": [{"key": s, "value": s} for s in strings],
+                                }
+                            )
+            if class_data:
+                output_json_path = os.path.join(output_dir, f"{project_name}.json")
+                json_data = create_json_template(project_name, class_data)
+                try:
+                    with open(output_json_path, "w", encoding=ENCODING) as f:
+                        json.dump(json_data, f, ensure_ascii=False, indent=2)
+                    generated_files.append(output_json_path)
+                except Exception as e:
+                    print(f"写入 {output_json_path} 出错：{e}")
+    except Exception as e:
+        print(f"遍历 {input_dir} 出错：{e}")
     print("\n=== 生成 JSON 操作日志 ===")
     if generated_files:
         print(f"成功生成 {len(generated_files)} 个 JSON 文件:")
@@ -93,31 +100,32 @@ def generate_json_from_java() -> None:
         print("未生成任何 JSON 文件")
 
 
-def load_json_file(file_path: Path) -> Union[Dict, List]:
+def load_json_file(file_path: Path) -> Union[Dict, List, None]:
     """安全加载JSON文件"""
     try:
         with open(file_path, "r", encoding=ENCODING) as f:
             return json.load(f)
     except json.JSONDecodeError as e:
         print(f"错误：文件 {file_path} 不是有效的JSON格式: {e}")
-        raise
+        return None
     except Exception as e:
         print(f"错误：读取文件 {file_path} 时出错: {e}")
-        raise
+        return None
 
 
-def save_json_file(file_path: Path, data: Any) -> None:
+def save_json_file(file_path: Path, data: Any) -> bool:
     """安全保存JSON文件"""
     try:
         with open(file_path, "w", encoding=ENCODING) as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
+        return True
     except Exception as e:
         print(f"错误：保存文件 {file_path} 时出错: {e}")
-        raise
+        return False
 
 
 def process_json_data(data: List[Dict]) -> Dict[str, str]:
-    """处理JSON数据，生成键值映射"""
+    """处理JSON数据，生成基于pairs.value的键值映射"""
     output_data = {}
     seen_values = {}
     current_idx = 1
@@ -127,12 +135,13 @@ def process_json_data(data: List[Dict]) -> Dict[str, str]:
             dirs = class_name.split("/")[:-1]  # 提取目录名，去掉类名
             prefix = dirs[0] if dirs else "default"  # 使用第一个目录名或默认值
             for pair in item["pairs"]:
-                key = pair["key"]
-                if key not in seen_values:
-                    seen_values[key] = f"{prefix}.{current_idx}"
-                    output_data[f"{prefix}.{current_idx}"] = key
+                value = pair.get("value")  # 提取pairs.value
+                if value and value not in seen_values:
+                    seen_values[value] = f"{prefix}.{current_idx}"
+                    output_data[f"{prefix}.{current_idx}"] = value
                     current_idx += 1
-                pair["value"] = seen_values[key]
+                if value:  # 更新pair的value字段
+                    pair["value"] = seen_values[value]
     return output_data
 
 
@@ -140,21 +149,32 @@ def extract_json() -> None:
     """从vp文件夹提取JSON数据并处理到lang文件夹"""
     processed_files = []
     output_files = []
-    # 清空 lang 文件夹
-    for file in Path(LANG_DIR).glob("*"):
-        file.unlink()
+    # 清空 lang 文件夹，跳过无法删除的文件
+    lang_path = Path(LANG_DIR)
+    try:
+        for file in lang_path.glob("*"):
+            try:
+                file.unlink()
+            except Exception as e:
+                print(f"无法删除 {file}：{e}，跳过")
+    except Exception as e:
+        print(f"访问 {lang_path} 出错：{e}")
     input_files = list(Path(VP_DIR).glob(f"*{JSON_EXT}"))
     for input_path in tqdm(input_files, desc="处理 JSON 文件"):
         output_path = Path(LANG_DIR) / input_path.name
         try:
             data = load_json_file(input_path)
+            if data is None:
+                print(f"跳过文件 {input_path}：无效的JSON数据")
+                continue
             output_data = process_json_data(data)
-            save_json_file(output_path, output_data)
-            save_json_file(input_path, data)
-            processed_files.append(str(input_path))
-            output_files.append(str(output_path))
-        except Exception:
-            print(f"跳过文件 {input_path} 的处理")
+            if save_json_file(output_path, output_data) and save_json_file(input_path, data):
+                processed_files.append(str(input_path))
+                output_files.append(str(output_path))
+            else:
+                print(f"跳过文件 {input_path}：保存失败")
+        except Exception as e:
+            print(f"跳过文件 {input_path} 的处理：{e}")
             continue
     print("\n=== 提取 JSON 操作日志 ===")
     print(f"已处理 {len(processed_files)} 个文件")
@@ -180,16 +200,25 @@ def write_back() -> None:
             continue
         try:
             output_data = load_json_file(output_path)
+            if output_data is None:
+                print(f"跳过文件 {output_path}：无效的JSON数据")
+                continue
             input_data = load_json_file(input_path)
+            if input_data is None:
+                print(f"跳过文件 {input_path}：无效的JSON数据")
+                continue
             for item in input_data[1:]:
                 if "pairs" in item and item["pairs"]:
                     for pair in item["pairs"]:
-                        if pair["value"] in output_data:
-                            pair["value"] = output_data[pair["value"]]
-            save_json_file(input_path, input_data)
-            processed_files.append(str(input_path))
-        except Exception:
-            print(f"跳过文件 {output_path} 的处理")
+                        current_value = pair.get("value")
+                        if current_value in output_data:
+                            pair["value"] = output_data[current_value]
+            if save_json_file(input_path, input_data):
+                processed_files.append(str(input_path))
+            else:
+                print(f"跳过文件 {input_path}：保存失败")
+        except Exception as e:
+            print(f"跳过文件 {output_path} 的处理：{e}")
             continue
     print("\n=== 写回 JSON 操作日志 ===")
     print(f"已写回 {len(processed_files)} 个文件")
