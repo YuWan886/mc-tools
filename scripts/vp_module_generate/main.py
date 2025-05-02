@@ -46,9 +46,9 @@ def create_json_template(project_name: str, class_data: List[Dict]) -> List[Dict
             "name": project_name,
             "desc": "",
             "mods": project_name,
-            "authors": "一条鱼丸_",
+            "authors": "",
             "dynamic": False,
-            "i18n": False,
+            "i18n": True,
         }
     ]
     template.extend(class_data)
@@ -71,7 +71,9 @@ def generate_json_from_java() -> None:
                     if file.endswith(".java"):
                         java_file_path = os.path.join(root, file)
                         relative_path = os.path.relpath(java_file_path, project_path)
-                        class_path = os.path.splitext(relative_path)[0].replace(os.sep, "/")
+                        class_path = os.path.splitext(relative_path)[0].replace(
+                            os.sep, "/"
+                        )
                         strings = extract_strings_from_java(java_file_path)
                         if strings:
                             class_data.append(
@@ -168,7 +170,9 @@ def extract_json() -> None:
                 print(f"跳过文件 {input_path}：无效的JSON数据")
                 continue
             output_data = process_json_data(data)
-            if save_json_file(output_path, output_data) and save_json_file(input_path, data):
+            if save_json_file(output_path, output_data) and save_json_file(
+                input_path, data
+            ):
                 processed_files.append(str(input_path))
                 output_files.append(str(output_path))
             else:
