@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>材质编辑器</title>
+    <link rel="stylesheet" href="editor.css">
+</head>
+<body>
+    <div class="container">
+        <div class="sidebar">
+            <h2>文件列表</h2>
+            <div class="file-actions">
+                <input type="text" id="search-input" placeholder="搜索文件...">
+                <button id="search-btn" title="搜索">🔍</button>
+                <button id="refresh-list" title="刷新">🔄</button>
+                <button id="new-file" title="新建">➕</button>
+            </div>
+            <ul id="file-list"></ul>
+        </div>
+
+        <div class="editor">
+            <div class="editor-header">
+                <h2 id="current-file">未选择文件</h2>
+                <div class="editor-actions">
+                    <button id="save-file">保存</button>
+                    <button id="delete-file">删除</button>
+                </div>
+            </div>
+            <div class="editor-content">
+                <form id="editor-form">
+                    <div class="form-section">
+                        <h3>基本属性 (必填)</h3>
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label>版本 (必填)</label>
+                                <select id="version" class="form-control" required>
+                                    <option value="1.21.1">1.21.1</option>
+                                    <option value="1.20.1">1.20.1</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Key</label>
+                                <input type="text" id="key" class="form-control" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Translation</label>
+                                <input type="text" id="translation" class="form-control" required>
+                            </div>
+                            <div class="form-group">
+                                <label>硬度</label>
+                                <input type="number" id="hardness" class="form-control" step="any" required>
+                            </div>
+                            <div class="form-group">
+                                <label>密度</label>
+                                <input type="number" id="density" class="form-control" step="any" required>
+                            </div>
+                            <div class="form-group">
+                                <label>耐久度</label>
+                                <input type="number" id="durability" class="form-control" required>
+                            </div>
+                            <div class="form-group">
+                                <label>柔韧性</label>
+                                <input type="number" id="flexibility" class="form-control" step="any" required>
+                            </div>
+                            <div class="form-group">
+                                <label>挖掘速度</label>
+                                <input type="number" id="mining_speed" class="form-control" step="any" required>
+                            </div>
+                            <div class="form-group">
+                                <label>挖掘等级</label>
+                                <select id="mining_level" class="form-control" required>
+                                    <option value="minecraft:incorrect_for_stone_tool">石头工具</option>
+                                    <option value="minecraft:needs_iron_tool">铁工具</option>
+                                    <option value="minecraft:needs_diamond_tool">钻石工具</option>
+                                    <option value="minecraft:needs_netherite_tool">下界合金工具</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-section">
+                        <h3>图标配置 (必填)</h3>
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label>类型</label>
+                                <select id="icon-type" class="form-control" required>
+                                    <option value="item">物品</option>
+                                    <option value="texture">纹理</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>物品/纹理 Key</label>
+                                <input type="text" id="icon-value" class="form-control" required>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-section">
+                        <h3>材料组别 (必填)</h3>
+                        <div class="checkbox-group">
+                            <label><input type="checkbox" value="stone"> 石头</label>
+                            <label><input type="checkbox" value="wood"> 木头</label>
+                            <label><input type="checkbox" value="metal"> 金属</label>
+                            <label><input type="checkbox" value="bone"> 骨头</label>
+                            <label><input type="checkbox" value="glass"> 玻璃</label>
+                            <label><input type="checkbox" value="fabric"> 织物</label>
+                            <label><input type="checkbox" value="crystal"> 水晶</label>
+                            <label><input type="checkbox" value="gem"> 宝石</label>
+                        </div>
+                    </div>
+
+                    <div class="form-section">
+                        <h3>高级属性 (可选)</h3>
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label>等级</label>
+                                <input type="number" id="tier" class="form-control">
+                            </div>
+                            <div class="form-group">
+                                <label>附魔能力</label>
+                                <input type="number" id="enchantability" class="form-control">
+                            </div>
+                            <div class="form-group">
+                                <label>纹理类型</label>
+                                <select id="textures" class="form-control" multiple>
+                                    <option value="rough">粗糙</option>
+                                    <option value="shiny">闪亮</option>
+                                    <option value="bright">明亮</option>
+                                    <option value="fabric">织物</option>
+                                    <option value="feather">羽毛</option>
+                                    <option value="glowing">发光</option>
+                                    <option value="magma">岩浆石</option>
+                                    <option value="wood">木质</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-section">
+                        <h3>物品配置 (可选)</h3>
+                        <div id="items-container" class="form-grid-small"></div>
+                        <button type="button" id="add-item" class="add-button">添加物品</button>
+                    </div>
+
+                    <div class="form-section">
+                        <h3>颜色调色板 (可选)</h3>
+                        <select id="color-palette-type" class="form-control">
+                            <option value="">-- 无 --</option>
+                            <option value="grayscale_map">灰度映射</option>
+                            <option value="image_generated">图像生成</option>
+                            <option value="image_generated_item">物品图像生成</option>
+                            <option value="layered_mask">分层遮罩</option>
+                        </select>
+                        <div id="color-palette-editor" class="sub-section"></div>
+                    </div>
+
+                    <div class="form-section">
+                        <h3>模块属性 (可选)</h3>
+                        <div class="form-group">
+                            <label>选择属性</label>
+                            <select id="property-select" class="form-control">
+                                <option value="">-- 选择属性 --</option>
+                            </select>
+                        </div>
+                        <button type="button" id="add-property" class="add-button">添加属性</button>
+                        <div id="module-properties" class="form-grid-small"></div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    <script src="editor.js"></script>
+</body>
+</html>
