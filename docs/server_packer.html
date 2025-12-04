@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Modrinth Server Packer</title>
+    <style>
+        :root {
+            --vp-c-bg: #ffffff;
+            --vp-c-text-1: #2c3e50;
+            /* 更深的颜色 */
+            --vp-c-text-2: #34495e;
+            /* 更深的颜色 */
+            --vp-c-text-3: #7f8c8d;
+            --vp-c-brand-1: #3eaf7c;
+            --vp-c-brand-2: #42b983;
+            --vp-c-divider: #e0e0e0;
+            --vp-c-border: #e0e0e0;
+            --vp-c-gray-light-1: #f6f6f7;
+            --vp-c-gray-light-2: #eeeeee;
+            --vp-c-gray-light-3: #dddddd;
+            --vp-c-gray-light-4: #cccccc;
+            --vp-c-gray-light-5: #bbbbbb;
+            --vp-c-gray-light-6: #aaaaaa;
+            --vp-c-gray-light-7: #999999;
+            --vp-c-gray-light-8: #888888;
+            --vp-c-gray-light-9: #777777;
+            --vp-c-gray-light-10: #666666;
+            --vp-c-gray-light-11: #555555;
+            --vp-c-gray-light-12: #444444;
+            --vp-c-gray-light-13: #333333;
+            --vp-c-gray-light-14: #222222;
+            --vp-c-gray-light-15: #111111;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --vp-c-bg: #1a1a1a;
+                --vp-c-text-1: #e0e0e0;
+                --vp-c-text-2: #c0c0c0;
+                --vp-c-text-3: #808080;
+                --vp-c-divider: #3a3a3a;
+                --vp-c-border: #3a3a3a;
+                --vp-c-gray-light-1: #2a2a2a;
+                --vp-c-gray-light-2: #333333;
+                /* 其他深色模式颜色变量根据需要调整 */
+            }
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+            line-height: 1.6;
+            color: var(--vp-c-text-1);
+            background-color: var(--vp-c-bg);
+            margin: 0;
+            padding: 0;
+            transition: color 0.3s ease, background-color 0.3s ease;
+            /* 添加过渡效果 */
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        h1 {
+            font-size: 2.5em;
+            color: var(--vp-c-text-1);
+            border-bottom: 1px solid var(--vp-c-divider);
+            padding-bottom: 0.5em;
+            margin-top: 1em;
+        }
+
+        h2 {
+            font-size: 2em;
+            color: var(--vp-c-text-1);
+            border-bottom: 1px solid var(--vp-c-divider);
+            padding-bottom: 0.3em;
+            margin-top: 1.5em;
+        }
+
+        h3 {
+            font-size: 1.5em;
+            color: var(--vp-c-text-1);
+            margin-top: 1.5em;
+        }
+
+        a {
+            color: var(--vp-c-brand-1);
+            text-decoration: none;
+        }
+
+        a:hover {
+            text-decoration: underline;
+        }
+
+        code {
+            background-color: var(--vp-c-gray-light-2);
+            padding: 0.2em 0.4em;
+            border-radius: 4px;
+            font-family: "Fira Code", "Cascadia Code", monospace;
+            color: var(--vp-c-text-2);
+        }
+
+        pre {
+            background-color: var(--vp-c-gray-light-1);
+            padding: 1em;
+            border-radius: 8px;
+            overflow-x: auto;
+            font-family: "Fira Code", "Cascadia Code", monospace;
+            line-height: 1.4;
+        }
+
+        pre code {
+            background-color: transparent;
+            padding: 0;
+            color: var(--vp-c-text-1);
+        }
+
+        ul {
+            list-style-type: disc;
+            padding-left: 1.5em;
+        }
+
+        li {
+            margin-bottom: 0.5em;
+        }
+
+        strong {
+            color: var(--vp-c-text-1);
+        }
+
+        p {
+            margin-bottom: 1em;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>Modrinth Server Packer</h1>
+        <p>一个用于将 Modrinth 整合包（.mrpack）打包成 Minecraft 服务端的 Python 脚本。</p>
+        <h2>功能</h2>
+        <ul>
+            <li>解析 <code>.mrpack</code> 文件，提取 <code>modrinth.index.json</code> 和覆盖文件。</li>
+            <li>自动检测模组加载器（Forge、Fabric、Quilt、NeoForge）并下载对应的服务器核心。</li>
+            <li>过滤客户端资源（资源包、光影包）和仅客户端模组（通过 Modrinth API 检测环境支持）。</li>
+            <li>并行下载模组和其他文件，支持重试。</li>
+            <li>复制覆盖文件到输出目录。</li>
+            <li>生成跨平台启动脚本（Windows 批处理文件和 Linux/macOS Shell 脚本）。</li>
+            <li>清理临时文件。</li>
+        </ul>
+        <h2>优化特点</h2>
+        <ul>
+            <li><strong>精简服务端大小</strong>：仅下载安装器但不运行，用户可手动运行以保持最小输出。</li>
+            <li><strong>并行下载</strong>：使用线程池加速模组下载。</li>
+            <li><strong>智能过滤</strong>：根据 <code>env.server</code> 字段或 API 查询跳过仅客户端模组。</li>
+        </ul>
+        <h2>使用方法</h2>
+        <h3><a href="./modrinth_server_packer.py">使用 Python 脚本</a></h3>
+        <pre><code class="language-bash">python modrinth_server_packer.py &lt;modpack_file&gt; [--output OUTPUT_DIR]
+</code></pre>
+        <ul>
+            <li><code>&lt;modpack_file&gt;</code>：Modrinth 整合包文件路径（.mrpack）。</li>
+            <li><code>--output</code> 或 <code>-o</code>：输出目录（可选）。如果未指定，将自动生成 <code>output_server/&lt;整合包名称&gt;</code>。
+            </li>
+        </ul>
+        <h3><a
+                href="https://github.com/YuWan886/mc-tools/releases/download/server-packer/modrinth_server_packer.exe">使用可执行文件（推荐）</a>
+        </h3>
+        <p>脚本已打包为单个可执行文件，无需安装 Python 或依赖库。下载 <a
+                href="https://github.com/YuWan886/mc-tools/releases/download/server-packer/modrinth_server_packer.exe"><code>modrinth_server_packer.exe</code></a>
+            并直接运行。</p>
+        <pre><code class="language-bash">modrinth_server_packer.exe &lt;modpack_file&gt; [--output OUTPUT_DIR]
+</code></pre>
+        <h3>示例</h3>
+        <pre><code class="language-bash"># 使用自动输出目录
+python modrinth_server_packer.py &quot;modpack&quot;
+# 或使用可执行文件
+modrinth_server_packer.exe &quot;modpack&quot;
+
+# 指定输出目录
+python modrinth_server_packer.py &quot;modpack&quot; --output my_server
+modrinth_server_packer.exe &quot;modpack&quot; --output my_server
+</code></pre>
+        <h2>输出结构</h2>
+        <p>输出目录将包含：</p>
+        <ul>
+            <li><code>forge-&lt;version&gt;-installer.jar</code> 或对应的安装器 JAR。</li>
+            <li><code>mods/</code>：过滤后的服务端/通用模组。</li>
+            <li><code>config/</code>、<code>global_packs/</code> 等：从覆盖文件复制的配置和资源。</li>
+            <li><code>start.bat</code> 和 <code>start.sh</code>：启动脚本（如果获得了服务器 JAR）。</li>
+            <li>其他必要的文件。</li>
+        </ul>
+        <h2>依赖</h2>
+        <ul>
+            <li>Python 3.12+</li>
+            <li><code>requests</code> 库</li>
+            <li><code>tqdm</code> 库</li>
+        </ul>
+        <p>安装依赖：</p>
+        <pre><code class="language-bash">pip install -r requirements.txt
+</code></pre>
+        <h2>注意事项</h2>
+        <ul>
+            <li>需要网络连接以下载模组和服务器核心。</li>
+            <li>脚本仅下载安装器，用户需要手动运行安装器来生成服务器文件。</li>
+            <li>启动脚本假设 Java 已安装并位于 PATH 中。</li>
+        </ul>
+
+    </div>
+</body>
+
+</html>
