@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>游戏角色与配置</title>
+  <style>
+    /* 根变量：定义颜色和字体，实现主题切换 */
+    :root {
+      /* 浅色主题变量 */
+      --vp-c-brand-1: #42b883;
+      /* 核心主题色 (Vue/VitePress 绿) */
+      --vp-c-text-1: rgba(60, 60, 60, 0.85);
+      /* 主要文本颜色 */
+      --vp-c-bg: #ffffff;
+      /* 页面背景色 */
+      --vp-c-bg-alt: #f6f6f7;
+      /* 替代背景色，用于表格行/代码块 */
+      --vp-c-border: #eaeaea;
+      /* 边框/分隔线颜色 */
+      --vp-c-neutral: #f0f0f0;
+      /* 表格头部背景色 */
+      --vp-font-family-base: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif;
+      --vp-code-color: #c94c2e;
+      /* 代码高亮色 */
+    }
+
+    /* 暗色主题适配 */
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --vp-c-text-1: rgba(255, 255, 255, 0.88);
+        --vp-c-bg: #1a1a1a;
+        --vp-c-bg-alt: #242424;
+        --vp-c-border: #3c3c3c;
+        --vp-c-neutral: #333333;
+        --vp-code-color: #f77669;
+        /* 适合暗色背景的代码色 */
+      }
+    }
+
+    /* 全局样式和居中容器 */
+    body {
+      font-family: var(--vp-font-family-base);
+      color: var(--vp-c-text-1);
+      background-color: var(--vp-c-bg);
+      line-height: 1.6;
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      transition: color 0.5s, background-color 0.5s;
+      /* 平滑切换主题 */
+    }
+
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+      /* 居中显示 */
+      padding: 40px 24px;
+      /* 增加内边距 */
+    }
+
+    /* 标题样式 */
+    h2 {
+      color: var(--vp-c-text-1);
+      border-bottom: 1px solid var(--vp-c-border);
+      padding-bottom: 0.5em;
+      margin-top: 40px;
+      margin-bottom: 20px;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+      font-size: 1.8em;
+    }
+
+    /* 增强粗体字样式 */
+    strong {
+      color: var(--vp-c-brand-1);
+      font-weight: 700;
+    }
+
+    /* 表格样式 */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 20px 0;
+      font-size: 0.9em;
+      overflow: hidden;
+      border-radius: 8px;
+      /* 略微圆角 */
+      border: 1px solid var(--vp-c-border);
+      /* 整体边框 */
+    }
+
+    th,
+    td {
+      padding: 12px 15px;
+      text-align: left;
+      border-bottom: 1px solid var(--vp-c-border);
+    }
+
+    th {
+      background-color: var(--vp-c-neutral);
+      color: var(--vp-c-text-1);
+      font-weight: 600;
+      white-space: nowrap;
+    }
+
+    tr:nth-child(even) {
+      background-color: var(--vp-c-bg-alt);
+      /* 斑马纹效果 */
+    }
+
+    /* 突出第一列角色名称 */
+    td:first-child strong {
+      color: var(--vp-c-brand-1);
+    }
+
+    /* 移除表格最后一行底部边框 */
+    tbody tr:last-child td {
+      border-bottom: none;
+    }
+
+    /* 代码和命令样式 */
+    code {
+      font-family: 'Fira Code', 'Monaco', 'Consolas', 'Courier New', monospace;
+      background-color: var(--vp-c-bg-alt);
+      padding: 2px 5px;
+      border-radius: 4px;
+      color: var(--vp-code-color);
+      white-space: nowrap;
+    }
+
+    p {
+      margin-bottom: 16px;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="container">
+    <h2 id="角色概览">角色概览</h2>
+
+    <section>
+      <h2 id="杀手">🔪 杀手</h2>
+      <table>
+        <thead>
+          <tr>
+            <th style="text-align:left">角色名称</th>
+            <th style="text-align:left">能力</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td style="text-align:left"><strong>变形者</strong></td>
+            <td style="text-align:left">可以在冷却时间后<strong>变形</strong>成任何<strong>活着的</strong>玩家。</td>
+          </tr>
+          <tr>
+            <td style="text-align:left"><strong>幻影</strong></td>
+            <td style="text-align:left">可以在冷却时间后获得<strong>暂时隐形</strong>。注意：你的<strong>物品仍然可见</strong>！</td>
+          </tr>
+          <tr>
+            <td style="text-align:left"><strong>交换者</strong></td>
+            <td style="text-align:left">可以在冷却时间后将地图上<strong>两名玩家</strong>的位置进行<strong>交换</strong>。</td>
+          </tr>
+          <tr>
+            <td style="text-align:left"><strong>亡语杀手</strong></td>
+            <td style="text-align:left">可以<strong>听到死人</strong>的声音。</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2 id="中立">🤝 中立</h2>
+      <table>
+        <thead>
+          <tr>
+            <th style="text-align:left">角色名称</th>
+            <th style="text-align:left">能力</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td style="text-align:left"><strong>秃鹫</strong></td>
+            <td style="text-align:left">通过<strong>吃掉尸体</strong>来转变为<strong>杀手</strong>！<strong>仅在玩家人数超过 8 人时启用</strong>。
+            </td>
+          </tr>
+          <tr>
+            <td style="text-align:left"><strong>小丑</strong></td>
+            <td style="text-align:left">
+              拥有<strong>假刀</strong>和<strong>假左轮手枪</strong>。被射击时会进入<strong>疯狂模式</strong>，但没有护盾，因此再被射击一次就会死亡。<strong>可能会意外击杀杀手队友，导致游戏结束</strong>，务必配合！
+            </td>
+          </tr>
+          <tr>
+            <td style="text-align:left"><strong>处决者</strong></td>
+            <td style="text-align:left">游戏开始时获得一个<strong>目标</strong>。如果目标<strong>死亡</strong>，处决者会变为<strong>杀手</strong>。
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2 id="平民">🧑‍🤝‍🧑 平民</h2>
+      <table>
+        <thead>
+          <tr>
+            <th style="text-align:left">角色名称</th>
+            <th style="text-align:left">能力</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td style="text-align:left"><strong>列车长</strong></td>
+            <td style="text-align:left">
+              拥有<strong>万能钥匙</strong>。当列车长死亡后，这把钥匙会<strong>掉落</strong>。请务必让所有人知道你拥有它，否则杀手可以用它来洗清嫌疑！
+            </td>
+          </tr>
+          <tr>
+            <td style="text-align:left"><strong>酒保</strong></td>
+            <td style="text-align:left">
+              可以<strong>暂时</strong>透视看到<strong>饮酒</strong>的人。酒保可以看到<strong>毒药</strong>和<strong>中毒的</strong>玩家。可以花费 100
+              美元（每完成一个任务获得 50 美元）购买<strong>防御药剂</strong>。防御药剂能让饮用者获得<strong>额外一次</strong>受击机会（类似于疯狂护甲）。
+            </td>
+          </tr>
+          <tr>
+            <td style="text-align:left"><strong>大嗓门</strong></td>
+            <td style="text-align:left">死亡时，你的<strong>尸体</strong>会<strong>发光</strong>。</td>
+          </tr>
+          <tr>
+            <td style="text-align:left"><strong>召回者</strong></td>
+            <td style="text-align:left"><strong>保存</strong>一个位置，稍后可以<strong>传送</strong>回去。使用你的能力键传送回保存的位置，花费 100
+              美元（每完成一个任务获得 50 美元）。</td>
+          </tr>
+          <tr>
+            <td style="text-align:left"><strong>验尸官</strong></td>
+            <td style="text-align:left">
+              可以查看尸体的<strong>死亡时间</strong>和<strong>死亡原因</strong>。（在<strong>旁观者模式</strong>下也可以使用！）</td>
+          </tr>
+          <tr>
+            <td style="text-align:left"><strong>巫毒</strong></td>
+            <td style="text-align:left"><strong>选择</strong>一个人，让TA与你<strong>一起死亡</strong>。</td>
+          </tr>
+          <tr>
+            <td style="text-align:left"><strong>记者</strong></td>
+            <td style="text-align:left">携带着大量的<strong>便条</strong>。</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2 id="配置与命令">⚙️ 配置与命令</h2>
+      <p>以下命令可用于配置游戏角色和游戏设置。</p>
+      <table>
+        <thead>
+          <tr>
+            <th style="text-align:left">命令</th>
+            <th style="text-align:left">参数</th>
+            <th style="text-align:left">描述</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td style="text-align:left"><code>setEnabledRole</code></td>
+            <td style="text-align:left"><code>&lt;roleid&gt; &lt;boolean&gt;</code></td>
+            <td style="text-align:left">启用或禁用特定角色</td>
+          </tr>
+          <tr>
+            <td style="text-align:left"><code>listRoles</code></td>
+            <td style="text-align:left">无</td>
+            <td style="text-align:left">列出所有可用角色及其启用状态</td>
+          </tr>
+          <tr>
+            <td style="text-align:left"><code>noellesroles setmax</code></td>
+            <td style="text-align:left"><code>&lt;roleid&gt; &lt;int&gt;</code></td>
+            <td style="text-align:left">设置角色的最大数量</td>
+          </tr>
+          <tr>
+            <td style="text-align:left"><code>noellesroles config</code></td>
+            <td style="text-align:left"><code>&lt;reload/reset&gt;</code></td>
+            <td style="text-align:left">重新加载或重置配置</td>
+          </tr>
+          <tr>
+            <td style="text-align:left"><code>tmm:start</code></td>
+            <td style="text-align:left"><code>&lt;mode&gt; &lt;int&gt;</code></td>
+            <td style="text-align:left">选择游戏模式和时长</td>
+          </tr>
+          <tr>
+            <td style="text-align:left"><code>tmm:setrolecount</code></td>
+            <td style="text-align:left"><code>killer &lt;int&gt;</code></td>
+            <td style="text-align:left">设置杀手阵营人数</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+  </div>
+</body>
+
+</html>

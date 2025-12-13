@@ -185,7 +185,7 @@ def process_modpack(modpack_file, output_dir):
     for file_entry in modrinth_index["files"]:
         path = file_entry["path"]
         if path.startswith("resourcepacks/") or path.startswith("shaderpacks/") or \
-           (os.sep not in path and (path == "options.txt" or path == "servers.dat")) or \
+           (os.sep not in path and (path == "options.txt" or path == "servers.dat" or path == "servers.dat_old")) or \
            path.startswith("essential/"):
             logger.info(f"跳过客户端资源或排除的文件/目录: {path}")
             continue
@@ -516,11 +516,6 @@ def get_mod_server_support_from_details(project_details: Optional[Dict[str, Any]
     else:
         # Default to optional if information is ambiguous or unspecified
         return "optional"
-
-def get_mod_server_support(file_hash):
-    """此函数现已被弃用。请确保项目详情已预缓存并使用 get_mod_server_support_from_details。"""
-    logger.warning("警告: get_mod_server_support 已弃用。请确保项目详情已预缓存并使用 get_mod_server_support_from_details。")
-    return "unknown" # Fallback, should not be called directly in optimized flow
 
 def install_server(output_dir, game_version, loader, loader_version):
     """下载并运行服务器安装程序，返回服务器 JAR 文件名。"""
