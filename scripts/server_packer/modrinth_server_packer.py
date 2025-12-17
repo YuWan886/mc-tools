@@ -629,7 +629,7 @@ def download_files_parallel(tasks, max_workers=10):  # 增加 max_workers
 def create_start_script(output_dir, server_jar_name, loader):
     """为 Windows 和 Linux 创建启动脚本。"""
     # 根据加载器确定 Java 参数
-    java_args = "-Xmx4G -Xms4G"
+    java_args = "-XX:+IgnoreUnrecognizedVMOptions -XX:+UnlockExperimentalVMOptions -Dfile.encoding=UTF-8 -Djava.awt.headless=true -XX:+AlwaysPreTouch -XX:+DisableExplicitGC -XX:MaxDirectMemorySize=1024G -XX:+UseZGC -XX:-ZProactive -XX:ZUncommitDelay=10 -XX:ZFragmentationLimit=5.0"
     # 根据加载器确定附加参数
     additional_args = "nogui"
     if loader == "neoforge" or loader == "forge":
