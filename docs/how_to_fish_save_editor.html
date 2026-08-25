@@ -238,9 +238,11 @@ const BAITS = [
   ["椰子","Coconut"], ["科技饵","Scientific Lure"], ["专业首领饵","Professional Boss Lure"],
   ["科技首领饵","Scientific Boss Lure"], ["默认鱼饵","Default Fish Bait"], ["默认蟹饵","Default Crab Bait"]
 ];
-/* 配件索引按名称排序推断（GameInfo 按 name 排序）：1=制退器 … 0=无 */
-const ATTACHMENTS = ["无","制退器 Compensator","扩容弹匣 Extended Mag","机械瞄具 Iron Sight",
-  "激光瞄具 Laser Sight","红点瞄具 Red Dot Sight","狙击镜 Sniper Scope","消音器 Suppressor"];
+/* 枪械配件（prefab 实测：所有武器均为 3 瞄具 / 3 枪管 / 13 级弹药升级）：
+   Sight/BarrelAttachment 索引必须 < 3、AmmoType 索引必须 < 13，越界即数组越界崩溃 */
+const WEAPON_SIGHTS = ["Iron Sight 机械瞄具","Red Dot Sight 红点瞄具","Sniper Scope 狙击镜"]; // 0=默认铁瞄
+const WEAPON_BARRELS = ["无","Compensator 制退器","Suppressor 消音器"];                          // 0=无
+const WEAPON_AMMO_MAX = 12; // 弹药升级共 13 级（索引 0~12）
 const LANGUAGES = ["英语 English","瑞典语 Svenska","简体中文","繁体中文","法语 Français","德语 Deutsch",
   "意大利语 Italiano","日语 日本語","韩语 한국어","波兰语 Polski","巴西葡语 Português (BR)","俄语 Русский",
   "西语拉美 Español (MX)","西语西班牙 Español (ES)","土耳其语 Türkçe","乌克兰语 Українська"];
@@ -265,6 +267,125 @@ const $ = id => document.getElementById(id);
 const esc = s => String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 const num = v => (typeof v === "number" && isFinite(v)) ? v : 0;
+
+/* ============================================================
+   物品字段限制（依据游戏反编译 _decomp_main 源码）：
+   SavedItem 是扁平结构，但游戏按物品类型（prefab 组件）读取字段：
+   - Creature 鱼/生物：Weight(实际重量)、KillScoreMultiplier、IsDripCreature
+   - Weapon   枪械：Sight / BarrelAttachment / AmmoType / ExtendedMag / LaserSight
+   - Melee    近战：Sharpness（索引 _sharpnessUpgrades[]）
+   - 其他物品：仅 Cookness / BettingMultiplier / SkinIndex 等通用字段
+   游戏写入器 SaveManager.ItemToSavedItem 对不适用字段一律写 0/false/1；
+   Weapon/Melee 的索引字段（配件/锋利度）是数组直索引且无钳制
+   （_sights[i]、_sharpnessUpgrades[i]），越界即数组越界崩溃。
+   ============================================================ */
+const CREATURE_IDS = new Set([...Array.from({length:53},(_,i)=>i), 79, 80]); // 鱼/生物（0-52、79 岩蟹、80 Bing Bong）
+const WEAPON_IDS = new Set([54, 66, 68, 69, 70]); // 突击步枪/手枪/霰弹枪/冲锋枪/狙击枪
+const MELEE_IDS = new Set([57, 58, 63, 64]);      // 指虎/小刀
+const MELEE_SHARPNESS_MAX = 15; // 锋利度 16 级（索引 0~15，prefab 实测）；57 指虎 / 63 小刀
+                                 // 注意：58/64 为 "PackedBackup" 废弃变体（0 级锋利度），游戏本身不可用
+const KIND_LABEL = { weapon:"武器", melee:"近战武器", creature:"生物" };
+const itemKind = id => CREATURE_IDS.has(id) ? "creature" : WEAPON_IDS.has(id) ? "weapon" : MELEE_IDS.has(id) ? "melee" : "other";
+/* 类型限制字段表：f=字段名 kind=允许类型 neutral=其他类型时的中立取值 */
+const GATED_FIELDS = [
+  { f:"AmmoType",         kind:"weapon",   neutral:0 },
+  { f:"BarrelAttachment", kind:"weapon",   neutral:0 },
+  { f:"Sight",            kind:"weapon",   neutral:0 },
+  { f:"ExtendedMag",      kind:"weapon",   neutral:false, bool:true },
+  { f:"LaserSight",       kind:"weapon",   neutral:false, bool:true },
+  { f:"Sharpness",        kind:"melee",    neutral:0 },
+  { f:"Weight",           kind:"creature", neutral:1 },
+  { f:"IsDripCreature",   kind:"creature", neutral:false, bool:true }
+];
+/* 皮肤预设（prefab 实测 SkinPreset._skins）：物品ID → 皮肤名列表，索引 0~N-1。
+   仅以下物品有皮肤；鱼、蟹竿(59)、雷达、收音机等无 SkinPreset，游戏会忽略其 SkinIndex。 */
+const ITEM_SKINS = {
+  54:["Default","White","Orange","Blue","Tiger","Hazard","Wood","Emerald","Ruby","Pink","Cow","Rainbow","Diamond","Gold"],
+  57:["Default","Camouflage","Wood","Emerald","Polka","Hazard","Gold","Chess","Ruby","Rainbow","Diamond"],
+  58:["Default","Camouflage","Wood","Emerald","Polka","Hazard","Gold","Chess","Ruby","Rainbow","Diamond"],
+  61:["Default","Orange","Winter","Cow","Hazard","Asiimov","Wood","Camouflage","Emerald","Ruby","Missing","Galaxy","Gold","Diamond"],
+  63:["Default","Camouflage","Chess","Tiger","Blaze","Emerald","Wood","Polka","Hazard","Rainbow","Galaxy","Missing","Ruby","Diamond","Gold"],
+  64:["Default","Camouflage","Chess","Tiger","Blaze","Emerald","Wood","Polka","Hazard","Rainbow","Galaxy","Missing","Ruby","Diamond","Gold"],
+  66:["Default","Wood","Pink","White","Blaze","Bluze","Missing","Emerald","Black and White","Inverted Diamond","Galaxy","Ruby","Diamond","Gold"],
+  68:["Default","Orange","Redwood","Greyscale","Hazard","Wood","Bronze","Emerald","Ruby","GoldStriped","Rainbow","Diamond","Gold"],
+  69:["Default","White","Blue","Pink","Red","Brown","Hazard","Wood","Emerald","Ruby","Purple","Tiger","Rainbow","Diamond","Gold","Cow"],
+  70:["Default","Wood","Brown","Light Gray","Winter","Camouflage","Cow","Asiimov","Blaze","Sponge","Emerald","Ruby","Tiger","Galaxy","Gold","Rainbow"]
+};
+const BOAT_SKINS = ["Default","Winter","Red","Orange","Blue","Camouflage","Emerald","Ruby","Fire","Polka","Blue Fade","Rainbow","Gold","Diamond"];
+const itemSkinCount = id => (ITEM_SKINS[id] ? ITEM_SKINS[id].length : 0);
+/* 按物品类型清除非适用字段（与游戏写入器 SaveManager.ItemToSavedItem 一致），返回是否发生清理 */
+function sanitizeItem(it){
+  if(!it || typeof it !== "object") return false;
+  const kind = itemKind(num(it.ItemID));
+  let changed = false;
+  for(const g of GATED_FIELDS){
+    if(kind === g.kind) continue;
+    if(g.bool){
+      if(it[g.f]){ it[g.f] = false; changed = true; }
+    }else if(num(it[g.f]) !== g.neutral){
+      it[g.f] = g.neutral; changed = true;
+    }
+  }
+  if(kind === "melee"){ // 近战锋利度钳制到安全上限（0~15，prefab 实测 16 级）
+    const s = clamp(Math.round(num(it.Sharpness)), 0, MELEE_SHARPNESS_MAX);
+    if(s !== num(it.Sharpness)){ it.Sharpness = s; changed = true; }
+  }
+  if(kind === "weapon"){ // 枪械配件索引钳制（越界数组越界崩溃）
+    const checks = [["AmmoType",0,WEAPON_AMMO_MAX],["BarrelAttachment",0,WEAPON_BARRELS.length-1],["Sight",0,WEAPON_SIGHTS.length-1]];
+    for(const [f,lo,hi] of checks){
+      const s = clamp(Math.round(num(it[f])), lo, hi);
+      if(s !== num(it[f])){ it[f] = s; changed = true; }
+    }
+  }
+  // 皮肤索引：仅带 SkinPreset 的物品有效（0~皮肤数-1），其余固定 0（与游戏写入器一致）
+  const skinN = itemSkinCount(num(it.ItemID));
+  if(skinN > 0){
+    const s = clamp(Math.round(num(it.SkinIndex)), 0, skinN - 1);
+    if(s !== num(it.SkinIndex)){ it.SkinIndex = s; changed = true; }
+  }else if(num(it.SkinIndex) !== 0){
+    it.SkinIndex = 0; changed = true;
+  }
+  if(changed) state.serializedCache = null;
+  return changed;
+}
+/* 保存前兜底：清理世界存档中所有物品（含手持物品）的越权字段 */
+function sanitizeAllItems(){
+  let n = 0;
+  for(const p of (Array.isArray(state.data.Players) ? state.data.Players : [])){
+    if(p.HeldItem && sanitizeItem(p.HeldItem)) n++;
+    for(const it of (Array.isArray(p.InventoryItems) ? p.InventoryItems : [])){
+      if(sanitizeItem(it)) n++;
+    }
+  }
+  return n;
+}
+/* local.txt 皮肤解锁兜底：仅可皮肤物品有效，索引钳制到 0~N-1 并去重排序；返回清理条数 */
+function sanitizeLocalSkins(){
+  const d = state.data;
+  let n = 0;
+  if(Array.isArray(d.UnlockedItemSkins)){
+    const kept = [];
+    for(const s of d.UnlockedItemSkins){
+      if(!s || typeof s !== "object"){ n++; continue; }
+      const skinN = itemSkinCount(num(s.ID));
+      if(skinN <= 0){ n++; continue; } // 非可皮肤物品：移除该条目
+      const list = Array.isArray(s.SkinsUnlocked) ? s.SkinsUnlocked : [];
+      const cleaned = [...new Set(list.map(x => clamp(Math.round(num(x)), 0, skinN - 1)))].sort((a,b)=>a-b);
+      if(!Array.isArray(s.SkinsUnlocked) || cleaned.length !== list.length || cleaned.some((v,i)=>v !== list[i])) n++;
+      s.SkinsUnlocked = cleaned;
+      kept.push(s);
+    }
+    d.UnlockedItemSkins = kept;
+  }
+  if(Array.isArray(d.UnlockedBoatSkins)){
+    const list = d.UnlockedBoatSkins;
+    const cleaned = [...new Set(list.map(x => clamp(Math.round(num(x)), 0, BOAT_SKINS.length - 1)))].sort((a,b)=>a-b);
+    if(cleaned.length !== list.length || cleaned.some((v,i)=>v !== list[i])) n++;
+    d.UnlockedBoatSkins = cleaned;
+  }
+  if(n > 0) state.serializedCache = null;
+  return n;
+}
 
 /* ---------- Toast ---------- */
 function toast(msg, type="info"){
@@ -442,6 +563,8 @@ $("btnSave").onclick = async () => {
   const btn = $("btnSave");
   if(btn.dataset.saving) return; // 防止重复点击导致重复写盘
   try{
+    // 兜底：非武器物品不允许携带枪械配件字段（鱼/钓竿等），自动清空避免存档报错
+    const cleaned = state.kind === "world" ? sanitizeAllItems() : state.kind === "local" ? sanitizeLocalSkins() : 0;
     const out = serialize();
     // 没有任何实际修改时，整次保存直接跳过（连备份都不写）
     if(!state.dirty && out === state.raw){
@@ -492,6 +615,7 @@ $("btnSave").onclick = async () => {
       state.dirty = false;
       toast("已生成下载文件（请将文件放回存档目录）。浏览器不支持原地保存时建议使用 Chrome/Edge。","ok");
     }
+    if(cleaned > 0) toast(`已自动清理 ${cleaned} 个物品的越权字段（配件/锋利度/极品/重量等仅限对应物品类型，与游戏写入规则一致）`, "warn");
     updateStatus();
   }catch(e){
     if(String(e).includes("AbortError")) return;
@@ -709,6 +833,7 @@ function renderPlayersTab(){
               <th>弹药</th><th>枪管</th><th>瞄具</th><th>扩容</th><th>激光</th><th>极品</th><th style="width:30px"></th></tr>
           ${inv.map((it, ii) => rowForItem(pi, ii, it)).join("")}
         </table>
+        <div class="unit" style="color:var(--dim2); font-size:11px; margin-top:4px;">字段按物品类型限制（prefab 实测，与游戏写入规则一致）：枪械配件仅武器（54/66/68/69/70）——瞄具 0~2（铁瞄/红点/狙击镜）、枪管 0~2（无/制退器/消音器）、弹药 0~12；锋利度仅近战（57 指虎、63 小刀，0~15）；重量与极品仅生物；皮肤索引仅 54/57/58/61/63/64/66/68/69/70 有效（0~该物品皮肤数-1）；越界索引会导致游戏数组越界崩溃，保存时自动钳制</div>
         <div class="btnrow" style="margin-top:8px;">
           <button class="small-btn" data-additem="${pi}">＋ 添加物品</button>
           <button class="small-btn danger" data-clearnv="${pi}">清空背包</button>
@@ -739,7 +864,23 @@ function itemSelect(idSel, idNum, value){
 
 function rowForItem(pi, ii, it){
   const v = num(it.ItemID);
+  const kind = itemKind(v);
+  const known = (v in ITEMS);
+  const skinN = itemSkinCount(v);
   const name = ITEMS[v] ? `${ITEMS[v][1]} ${ITEMS[v][0]}` : (v ? `ID ${v}` : "空");
+  const disFor = f => {
+    const g = GATED_FIELDS.find(x=>x.f===f);
+    return kind === g.kind ? "" : ` disabled title='仅${KIND_LABEL[g.kind]}可设置'`;
+  };
+  const valFor = f => {
+    const g = GATED_FIELDS.find(x=>x.f===f);
+    return kind === g.kind ? it[f] : g.neutral;
+  };
+  const idWarn = (v && !known) ? " warn" : "";
+  const idTitle = (v && !known) ? "未知物品 ID：游戏中无此物品，加载存档会中断该玩家背包读取" : esc(name);
+  const skinCell = skinN > 0
+    ? `<input type="number" data-p="${pi}" data-i="${ii}" data-f="SkinIndex" value="${clamp(num(it.SkinIndex),0,skinN-1)}" min="0" max="${skinN-1}" step="1" style="width:56px" title="皮肤索引 0~${skinN-1}：${ITEM_SKINS[v].join(" / ")}">`
+    : `<input type="number" data-p="${pi}" data-i="${ii}" data-f="SkinIndex" value="0" min="0" max="0" step="1" style="width:56px" disabled title="该物品没有皮肤（无 SkinPreset）">`;
   return `<tr>
     <td><input type="number" class="is" value="${num(it.InventorySlot)}" min="0" max="255" step="1" data-p="${pi}" data-i="${ii}" data-f="InventorySlot"></td>
     <td><div style="display:flex; gap:4px; align-items:center;">
@@ -747,24 +888,24 @@ function rowForItem(pi, ii, it){
           <option value="">— 自定义 —</option>
           ${Object.keys(ITEMS).map(k=>`<option value="${k}" ${String(k)===String(v)?"selected":""}>${ITEMS[k][1]} · ${ITEMS[k][0]}（ID ${k}）</option>`).join("")}
         </select>
-        <input type="number" data-p="${pi}" data-i="${ii}" data-f="ItemID" value="${v}" min="0" max="255" step="1" style="width:64px" title="${esc(name)}">
+        <input type="number" data-p="${pi}" data-i="${ii}" data-f="ItemID" value="${v}" min="0" max="255" step="1" style="width:64px" class="${idWarn}" title="${idTitle}">
       </div></td>
-    <td><input type="number" data-p="${pi}" data-i="${ii}" data-f="SkinIndex" value="${num(it.SkinIndex)}" min="0" max="255" step="1" style="width:56px"></td>
-    <td><input type="number" data-p="${pi}" data-i="${ii}" data-f="Sharpness" value="${num(it.Sharpness)}" min="0" max="255" step="1" style="width:56px"></td>
+    <td>${skinCell}</td>
+    <td><input type="number" data-p="${pi}" data-i="${ii}" data-f="Sharpness" value="${num(valFor("Sharpness"))}" min="0" max="${MELEE_SHARPNESS_MAX}" step="1" style="width:56px"${disFor("Sharpness")}></td>
     <td><input type="number" data-p="${pi}" data-i="${ii}" data-f="Cookness" value="${num(it.Cookness)}" min="0" max="2" step="0.01" style="width:64px"></td>
-    <td><input type="number" data-p="${pi}" data-i="${ii}" data-f="Weight" value="${num(it.Weight)}" min="0" step="0.01" style="width:64px"></td>
-    <td><select data-p="${pi}" data-i="${ii}" data-f="AmmoType" style="width:70px">
-          ${[0,1,2,3,4,5].map(a=>`<option value="${a}" ${num(it.AmmoType)===a?"selected":""}>${a===0?"无":a}</option>`).join("")}
+    <td><input type="number" data-p="${pi}" data-i="${ii}" data-f="Weight" value="${num(valFor("Weight"))}" min="0" step="0.01" style="width:64px"${disFor("Weight")}></td>
+    <td><select data-p="${pi}" data-i="${ii}" data-f="AmmoType" style="width:70px"${disFor("AmmoType")}>
+          ${Array.from({length:WEAPON_AMMO_MAX+1},(_,a)=>`<option value="${a}" ${num(valFor("AmmoType"))===a?"selected":""}>${a===0?"无":a}</option>`).join("")}
         </select></td>
-    <td><select data-p="${pi}" data-i="${ii}" data-f="BarrelAttachment" style="width:90px">
-          ${ATTACHMENTS.map((a,ai)=>`<option value="${ai}" ${num(it.BarrelAttachment)===ai?"selected":""}>${ai===0?"无":a}</option>`).join("")}
+    <td><select data-p="${pi}" data-i="${ii}" data-f="BarrelAttachment" style="width:115px"${disFor("BarrelAttachment")}>
+          ${WEAPON_BARRELS.map((a,ai)=>`<option value="${ai}" ${num(valFor("BarrelAttachment"))===ai?"selected":""}>${ai===0?"无":`${ai} ${a}`}</option>`).join("")}
         </select></td>
-    <td><select data-p="${pi}" data-i="${ii}" data-f="Sight" style="width:90px">
-          ${ATTACHMENTS.map((a,ai)=>`<option value="${ai}" ${num(it.Sight)===ai?"selected":""}>${ai===0?"无":a}</option>`).join("")}
+    <td><select data-p="${pi}" data-i="${ii}" data-f="Sight" style="width:135px"${disFor("Sight")}>
+          ${WEAPON_SIGHTS.map((a,ai)=>`<option value="${ai}" ${num(valFor("Sight"))===ai?"selected":""}>${ai===0?"铁瞄(默认)":`${ai} ${a}`}</option>`).join("")}
         </select></td>
-    <td style="text-align:center"><input type="checkbox" class="cb" data-p="${pi}" data-i="${ii}" data-f="ExtendedMag" ${it.ExtendedMag?"checked":""}></td>
-    <td style="text-align:center"><input type="checkbox" class="cb" data-p="${pi}" data-i="${ii}" data-f="LaserSight" ${it.LaserSight?"checked":""}></td>
-    <td style="text-align:center"><input type="checkbox" class="cb" data-p="${pi}" data-i="${ii}" data-f="IsDripCreature" ${it.IsDripCreature?"checked":""}></td>
+    <td style="text-align:center"><input type="checkbox" class="cb" data-p="${pi}" data-i="${ii}" data-f="ExtendedMag" ${valFor("ExtendedMag")?"checked":""}${disFor("ExtendedMag")}></td>
+    <td style="text-align:center"><input type="checkbox" class="cb" data-p="${pi}" data-i="${ii}" data-f="LaserSight" ${valFor("LaserSight")?"checked":""}${disFor("LaserSight")}></td>
+    <td style="text-align:center"><input type="checkbox" class="cb" data-p="${pi}" data-i="${ii}" data-f="IsDripCreature" ${valFor("IsDripCreature")?"checked":""}${disFor("IsDripCreature")}></td>
     <td><button class="small-btn danger" data-delitem="${pi}:${ii}">✕</button></td>
   </tr>`;
 }
@@ -810,18 +951,27 @@ function renderLocalTab(){
     </div>
   </div>
   <div class="panel"><h3>已解锁皮肤 <span class="hint">Skins</span></h3>
+    <div class="btnrow" style="margin-bottom:10px;">
+      <button class="btn primary" data-once="skins">🎨 一键解锁全部皮肤（物品 + 船）</button>
+      <span class="unit" style="color:var(--dim2); font-size:11px; align-self:center;">按各物品实际皮肤数解锁，自动避开无皮肤的鱼/蟹竿等；船皮肤一并解锁 0~${BOAT_SKINS.length-1}</span>
+    </div>
     <table>
       <tr><th>物品</th><th>已解锁皮肤索引</th><th style="width:60px"></th></tr>
       ${skins.map((s, si) => {
-        const nm = ITEMS[num(s.ID)] ? `${ITEMS[num(s.ID)][1]} ${ITEMS[num(s.ID)][0]}` : `ID ${num(s.ID)}`;
+        const sid = num(s.ID);
+        const skinN = itemSkinCount(sid);
+        const nm = skinN > 0 ? `${ITEMS[sid][1]} ${ITEMS[sid][0]}` : `ID ${sid}（无皮肤）`;
         return `<tr>
           <td><div style="display:flex; gap:4px; align-items:center;">
-            <select data-skinitem="${si}" style="flex:1"><option value="">— 自定义 —</option>
-              ${Object.keys(ITEMS).map(k=>`<option value="${k}" ${String(k)===String(num(s.ID))?"selected":""}>${ITEMS[k][1]} · ${ITEMS[k][0]}（ID ${k}）</option>`).join("")}
+            <select data-skinitem="${si}" style="flex:1">
+              ${Object.keys(ITEM_SKINS).map(k=>`<option value="${k}" ${String(k)===String(sid)?"selected":""}>${ITEMS[k][1]} · ${ITEMS[k][0]}（ID ${k}）</option>`).join("")}
             </select>
-            <input type="number" data-skinid="${si}" value="${num(s.ID)}" min="0" max="255" step="1" style="width:64px">
+            <input type="number" data-skinid="${si}" value="${sid}" min="0" max="255" step="1" style="width:64px" title="${esc(nm)}">
           </div></td>
-          <td><input type="text" data-skins="${si}" value="${(s.SkinsUnlocked||[]).join(",")}" style="width:100%" placeholder="如 1,2,10,14"></td>
+          <td>
+            <input type="text" data-skins="${si}" value="${(s.SkinsUnlocked||[]).join(",")}" style="width:100%" placeholder="如 1,2,10,14">
+            ${skinN > 0 ? `<div class="unit">共 ${skinN} 款皮肤，索引 0~${skinN-1}：${ITEM_SKINS[sid].join(" / ")}</div>` : `<div class="unit" style="color:var(--warn)">该物品没有皮肤，保存时此条目会被移除</div>`}
+          </td>
           <td><button class="small-btn danger" data-delskin="${si}">✕</button></td>
         </tr>`;
       }).join("")}
@@ -832,11 +982,12 @@ function renderLocalTab(){
     </div>
     <h4 style="color:var(--dim); font-size:12px; margin:14px 0 6px;">已解锁船皮肤 UnlockedBoatSkins</h4>
     <div style="display:flex; gap:6px; flex-wrap:wrap; align-items:center;">
-      ${boatSkins.map((b, bi) => `<span style="display:inline-flex; gap:4px; align-items:center; background:var(--bg3); border:1px solid var(--line); border-radius:6px; padding:3px 8px;">皮肤 ${b} <button class="small-btn danger" data-delboat="${bi}">✕</button></span>`).join("")}
+      ${boatSkins.map((b, bi) => `<span style="display:inline-flex; gap:4px; align-items:center; background:var(--bg3); border:1px solid var(--line); border-radius:6px; padding:3px 8px;">${b} ${BOAT_SKINS[b]!==undefined?("· "+BOAT_SKINS[b]):""} <button class="small-btn danger" data-delboat="${bi}">✕</button></span>`).join("")}
       ${boatSkins.length ? "" : '<span class="empty" style="padding:4px">暂无</span>'}
-      <input type="number" id="l_newBoat" min="0" max="255" step="1" value="1" style="width:64px; background:var(--bg3); border:1px solid var(--line); border-radius:6px; color:var(--txt); padding:5px 7px;">
+      <input type="number" id="l_newBoat" min="0" max="${BOAT_SKINS.length-1}" step="1" value="1" style="width:64px; background:var(--bg3); border:1px solid var(--line); border-radius:6px; color:var(--txt); padding:5px 7px;">
       <button class="small-btn" data-addboat>＋ 添加船皮肤</button>
     </div>
+    <div class="unit" style="color:var(--dim2); font-size:11px; margin-top:4px;">船共 ${BOAT_SKINS.length} 款皮肤，索引 0~${BOAT_SKINS.length-1}：${BOAT_SKINS.join(" / ")}；物品皮肤仅武器/指虎/小刀/钓竿可解锁（索引 0~该物品皮肤数-1），超出范围的索引保存时会自动清理</div>
   </div>
   <div class="panel"><h3>图鉴 CreaturesToList <span class="hint">击杀记录</span></h3>
     <div class="btnrow" style="margin-bottom:10px;">
@@ -875,13 +1026,6 @@ function renderLocalTab(){
       <div class="field"><label>界面语言</label><select id="l_Lang">
         ${LANGUAGES.map((x,i)=>`<option value="${i}" ${num(d.SavedLanguage)===i?"selected":""}>${x}</option>`).join("")}
       </select></div>
-    </div>
-  </div>
-  <div class="panel"><h3>⚡ 一键功能</h3>
-    <div class="btnrow">
-      <button class="btn primary" data-once="journal">📖 全图鉴解锁</button>
-      <button class="btn" data-once="skins">🎨 全部皮肤解锁</button>
-      <button class="btn" data-once="boatskins">🚤 全部船皮肤解锁</button>
     </div>
   </div>`;
 }
@@ -976,8 +1120,8 @@ function attachFormEvents(){
     bindBool(`p${pi}_Tut`, v=>p.HasFinishedTutorial = v);
     // 手持物品
     const hSel = $(`ph${pi}_Item`), hID = $(`ph${pi}_ID`);
-    if(hSel) hSel.onchange = () => { p.HeldItem = p.HeldItem || {}; p.HeldItem.ItemID = parseInt(hSel.value)||0; p.HeldItem.Exists = true; hID.value = p.HeldItem.ItemID; markDirty(); };
-    if(hID) hID.oninput = () => { p.HeldItem = p.HeldItem || {}; p.HeldItem.ItemID = clamp(parseInt(hID.value)||0,0,255); p.HeldItem.Exists = true; markDirty(); };
+    if(hSel) hSel.onchange = () => { p.HeldItem = p.HeldItem || {}; p.HeldItem.ItemID = parseInt(hSel.value)||0; p.HeldItem.Exists = true; hID.value = p.HeldItem.ItemID; sanitizeItem(p.HeldItem); markDirty(); };
+    if(hID) hID.oninput = () => { p.HeldItem = p.HeldItem || {}; p.HeldItem.ItemID = clamp(parseInt(hID.value)||0,0,255); p.HeldItem.Exists = true; sanitizeItem(p.HeldItem); markDirty(); };
     bindNum(`ph${pi}_Skin`, ()=>p.HeldItem&&p.HeldItem.SkinIndex, v=>{ p.HeldItem = p.HeldItem||{Exists:false}; p.HeldItem.SkinIndex = v; p.HeldItem.Exists = true; markDirty(); }, {min:0, max:255});
     bindNum(`ph${pi}_Cook`, ()=>p.HeldItem&&p.HeldItem.Cookness, v=>{ p.HeldItem = p.HeldItem||{Exists:false}; p.HeldItem.Cookness = v; p.HeldItem.Exists = true; markDirty(); }, {min:0, max:2});
     bindNum(`ph${pi}_Weight`, ()=>p.HeldItem&&p.HeldItem.Weight, v=>{ p.HeldItem = p.HeldItem||{Exists:false}; p.HeldItem.Weight = v; p.HeldItem.Exists = true; markDirty(); }, {min:0});
@@ -988,17 +1132,38 @@ function attachFormEvents(){
     });
     // 背包行
     (Array.isArray(p.InventoryItems) ? p.InventoryItems : []).forEach((it, ii) => {
+      // 物品类型变化时同步类型受限字段的可用状态与数值（非适用类型自动禁用并归位）
+      const syncKindFields = () => {
+        sanitizeItem(it);
+        const kind = itemKind(it.ItemID);
+        for(const g of GATED_FIELDS){
+          const ae = document.querySelector(`[data-p="${pi}"][data-i="${ii}"][data-f="${g.f}"]`);
+          if(!ae) continue;
+          const on = kind === g.kind;
+          ae.disabled = !on;
+          if(ae.type === "checkbox") ae.checked = on ? !!it[g.f] : !!g.neutral;
+          else ae.value = on ? num(it[g.f]) : g.neutral;
+        }
+        // 皮肤索引：随物品皮肤数切换
+        const skinEl = document.querySelector(`[data-p="${pi}"][data-i="${ii}"][data-f="SkinIndex"]`);
+        if(skinEl){
+          const n = itemSkinCount(it.ItemID);
+          skinEl.disabled = n <= 0;
+          skinEl.max = Math.max(0, n - 1);
+          skinEl.value = n > 0 ? clamp(num(it.SkinIndex), 0, n - 1) : 0;
+        }
+      };
       const bind = f => {
         const el = document.querySelector(`[data-p="${pi}"][data-i="${ii}"][data-f="${f}"]`);
         if(!el) return;
         const apply = () => {
-          if(f === "ItemID"){ it.ItemID = clamp(parseInt(el.value)||0, 0, 255); it.Exists = true; markDirty(); }
+          if(f === "ItemID"){ it.ItemID = clamp(parseInt(el.value)||0, 0, 255); it.Exists = true; syncKindFields(); markDirty(); }
           else if(f === "ID_SEL"){ it.ItemID = parseInt(el.value)||0; it.Exists = true;
             const numEl = document.querySelector(`[data-p="${pi}"][data-i="${ii}"][data-f="ItemID"]`);
-            if(numEl) numEl.value = it.ItemID; markDirty(); }
+            if(numEl) numEl.value = it.ItemID; syncKindFields(); markDirty(); }
           else if(f === "InventorySlot"){ it.InventorySlot = clamp(parseInt(el.value)||0, 0, 255); markDirty(); }
-          else if(f === "SkinIndex"){ it.SkinIndex = clamp(parseInt(el.value)||0, 0, 255); markDirty(); }
-          else if(f === "Sharpness"){ it.Sharpness = clamp(parseInt(el.value)||0, 0, 255); markDirty(); }
+          else if(f === "SkinIndex"){ const mx = Math.max(0, itemSkinCount(it.ItemID) - 1); it.SkinIndex = clamp(parseInt(el.value)||0, 0, mx); markDirty(); }
+          else if(f === "Sharpness"){ it.Sharpness = clamp(parseInt(el.value)||0, 0, MELEE_SHARPNESS_MAX); markDirty(); }
           else if(f === "Cookness"){ it.Cookness = clamp(parseFloat(el.value)||0, 0, 2); markDirty(); }
           else if(f === "Weight"){ it.Weight = Math.max(0, parseFloat(el.value)||0); markDirty(); }
           else if(f === "AmmoType"){ it.AmmoType = parseInt(el.value)||0; markDirty(); }
@@ -1073,16 +1238,18 @@ function attachFormEvents(){
       const itemEl = document.querySelector(`[data-skinitem="${si}"]`);
       const listEl = document.querySelector(`[data-skins="${si}"]`);
       if(idEl) idEl.oninput = () => { s.ID = clamp(parseInt(idEl.value)||0,0,255); markDirty(); };
-      if(itemEl) itemEl.onchange = () => { s.ID = parseInt(itemEl.value)||0; idEl.value = s.ID; markDirty(); };
+      if(itemEl) itemEl.onchange = () => { s.ID = parseInt(itemEl.value)||0; idEl.value = s.ID; markDirty(); render(); };
       if(listEl) listEl.oninput = () => {
-        s.SkinsUnlocked = listEl.value.split(",").map(x=>parseInt(x.trim())).filter(x=>!isNaN(x) && x>=0 && x<=255);
+        const max = itemSkinCount(num(s.ID)) - 1;
+        s.SkinsUnlocked = listEl.value.split(",").map(x=>parseInt(x.trim()))
+          .filter(x=>!isNaN(x) && x >= 0 && (max < 0 || x <= max));
         markDirty();
       };
     });
     const addSkin = document.querySelector("[data-addskin]");
     if(addSkin) addSkin.onclick = () => {
       d.UnlockedItemSkins = d.UnlockedItemSkins || [];
-      d.UnlockedItemSkins.push({ ID: 0, SkinsUnlocked: [] });
+      d.UnlockedItemSkins.push({ ID: Number(Object.keys(ITEM_SKINS)[0]), SkinsUnlocked: [] });
       markDirty(); render();
     };
     document.querySelectorAll("[data-delskin]").forEach(btn => {
@@ -1092,7 +1259,7 @@ function attachFormEvents(){
     const addBoat = document.querySelector("[data-addboat]");
     if(addBoat) addBoat.onclick = () => {
       d.UnlockedBoatSkins = d.UnlockedBoatSkins || [];
-      const v = clamp(parseInt($("l_newBoat").value)||0, 0, 255);
+      const v = clamp(parseInt($("l_newBoat").value)||0, 0, BOAT_SKINS.length - 1);
       if(!d.UnlockedBoatSkins.includes(v)){ d.UnlockedBoatSkins.push(v); d.UnlockedBoatSkins.sort((a,b)=>a-b); }
       markDirty(); render();
     };
@@ -1157,12 +1324,12 @@ function applyOnce(kind){
     d.CreaturesToList.forEach(c => { c.BeenKilled = true; c.KilledDrip = true; });
     markDirty(); render(); toast("图鉴已全部解锁（含极品击杀标记）","ok");
   }else if(kind === "skins"){
-    const ids = Object.keys(ITEMS).map(Number).filter(i => i >= 0 && i <= 85);
-    d.UnlockedItemSkins = ids.map(id => ({ ID: id, SkinsUnlocked: Array.from({length:16}, (_,i)=>i) }));
-    d.UnlockedBoatSkins = Array.from({length:16}, (_,i)=>i);
-    markDirty(); render(); toast("全部物品皮肤 + 船皮肤已解锁（索引 0~15）","ok");
+    // 按各物品实际皮肤数解锁（prefab 实测：仅 10 个可皮肤物品 + 船）
+    d.UnlockedItemSkins = Object.keys(ITEM_SKINS).map(Number).map(id => ({ ID: id, SkinsUnlocked: Array.from({length:ITEM_SKINS[id].length}, (_,i)=>i) }));
+    d.UnlockedBoatSkins = Array.from({length:BOAT_SKINS.length}, (_,i)=>i);
+    markDirty(); render(); toast("全部物品皮肤 + 船皮肤已解锁（按各物品实际皮肤数）","ok");
   }else if(kind === "boatskins"){
-    d.UnlockedBoatSkins = Array.from({length:16}, (_,i)=>i);
+    d.UnlockedBoatSkins = Array.from({length:BOAT_SKINS.length}, (_,i)=>i);
     markDirty(); render(); toast("全部船皮肤已解锁","ok");
   }
 }
