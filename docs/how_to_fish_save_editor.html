@@ -252,7 +252,9 @@ const state = {
   fileName: null,        // 如 鱼来.txt / local.txt
   dirHandle: null,       // FileSystemDirectoryHandle（可选）
   raw: null,             // 原始文本
+  rawBlob: null,         // 原始文本的预编码 Blob（保存备份时复用，避免重复编码）
   data: null,            // 解析后的对象
+  serializedCache: null, // serialize() 结果缓存（数据修改时失效）
   lastSaveRaw: null,     // LastSave 原始数字串（防精度丢失）
   dirty: false,
   currentTab: "main",
@@ -359,10 +361,12 @@ async function loadSaveList(dirHandle){
     const item = document.createElement("div");
     item.className = "save-item" + (e.name === "local.txt" ? " local" : "");
     item.innerHTML = `<div class="name">${esc(e.name)}</div><div class="meta">读取中…</div>`;
+    let curHandle = e.handle; // 保存时原文件会被改名成备份，句柄需随之刷新
+    item._setHandle = h => { curHandle = h; };
     item.onclick = async () => {
       try{
-        const text = await readFileBlob(e.handle);
-        await openSaveText(text, e.name, e.handle);
+        const text = await readFileBlob(curHandle);
+        await openSaveText(text, e.name, curHandle);
         [...listEl.children].forEach(c=>c.classList.remove("active"));
         item.classList.add("active");
       }catch(err){ toast("读取 " + e.name + " 失败：" + err, "err"); }
@@ -399,6 +403,8 @@ function openSaveText(text, name, handle, opts={}){
   state.raw = text;
   state.data = data;
   state.dirty = false;
+  state.serializedCache = null;
+  state.rawBlob = null; // 换文件后旧的预编码 Blob 失效
   state.lastSaveRaw = null;
   const m = text.match(/"LastSave"\s*:\s*(-?\d+)/);
   if(m) state.lastSaveRaw = m[1];
@@ -422,36 +428,60 @@ function openSaveText(text, name, handle, opts={}){
 
 /* ---------- 序列化（保留字段顺序与未知字段、防大整数精度丢失） ---------- */
 function serialize(){
+  if(state.serializedCache != null) return state.serializedCache; // 未修改时复用，避免大存档重复 stringify
   let s = JSON.stringify(state.data);
   if(state.lastSaveRaw && typeof state.data.LastSave === "number"){
     s = s.replace(/"LastSave"\s*:\s*-?\d+/, '"LastSave":' + state.lastSaveRaw);
   }
+  state.serializedCache = s;
   return s;
 }
 
 /* ---------- 保存 ---------- */
 $("btnSave").onclick = async () => {
+  const btn = $("btnSave");
+  if(btn.dataset.saving) return; // 防止重复点击导致重复写盘
   try{
     const out = serialize();
+    // 没有任何实际修改时，整次保存直接跳过（连备份都不写）
+    if(!state.dirty && out === state.raw){
+      toast("没有需要保存的修改","info");
+      return;
+    }
+    btn.dataset.saving = "1";
+    btn.disabled = true;
+    $("status").innerHTML = "💾 正在保存…";
+
     if(state.dirHandle && supportsFS){
-      // 自动备份：原文件 → .bak-时间戳
+      // 自动备份：原文件 → .bak-时间戳（含毫秒，避免同一秒内同名覆盖）
       const now = new Date();
-      const stamp = now.getFullYear().toString().padStart(4,"0") +
-        (now.getMonth()+1).toString().padStart(2,"0") + now.getDate().toString().padStart(2,"0") +
-        "-" + now.getHours().toString().padStart(2,"0") + now.getMinutes().toString().padStart(2,"0") +
-        now.getSeconds().toString().padStart(2,"0");
+      const p2 = n => String(n).padStart(2,"0");
+      const stamp = String(now.getFullYear()).padStart(4,"0") + p2(now.getMonth()+1) + p2(now.getDate()) +
+        "-" + p2(now.getHours()) + p2(now.getMinutes()) + p2(now.getSeconds()) +
+        "-" + String(now.getMilliseconds()).padStart(3,"0");
       const backupName = state.fileName.replace(/\.txt$/i, "") + ".txt.bak-" + stamp;
+
+      // 方案 A：原子保存（Chrome 110+）—— 备份=改名（零数据拷贝），主文件只全量写一次
       try{
-        const bfh = await state.dirHandle.getFileHandle(backupName, { create: true });
-        const bw = await bfh.createWritable();
-        await bw.write(state.raw);
-        await bw.close();
-      }catch(e){ toast("备份写入失败（已跳过）：" + e.message, "warn"); }
-      const fh = await state.dirHandle.getFileHandle(state.fileName, { create: true });
-      const w = await fh.createWritable();
-      await w.write(out);
-      await w.close();
+        const ok = await saveAtomic(out, backupName);
+        if(!ok) await saveParallel(out, backupName);
+      }catch(aErr){
+        // 方案 A 失败（不支持 move / 文件被占用等）：先还原现场，再退回并行覆盖写
+        await restoreAfterAtomicFailure(backupName);
+        await saveParallel(out, backupName);
+      }
+
+      // 改名备份后，侧边栏中该文件的句柄会指向备份文件，刷新为正式文件句柄
+      try{
+        const fresh = await state.dirHandle.getFileHandle(state.fileName);
+        for(const c of $("saveList").children){
+          const nm = c.querySelector(".name");
+          if(nm && nm.textContent === state.fileName && c._setHandle) c._setHandle(fresh);
+        }
+      }catch(_){}
+
       state.raw = out;
+      state.rawBlob = null; // 内容已更新，下次保存时重新编码
       state.dirty = false;
       toast("已保存到 " + state.fileName + "（备份：" + backupName + "）", "ok");
     }else{
@@ -466,8 +496,69 @@ $("btnSave").onclick = async () => {
   }catch(e){
     if(String(e).includes("AbortError")) return;
     toast("保存失败：" + e.message, "err");
+  }finally{
+    btn.dataset.saving = "";
+    btn.disabled = false;
   }
 };
+
+/* 原子保存：新内容写入临时文件 → 原文件改名成备份 → 临时文件改名为正式名。
+   全程只有一次全量写入（新内容）；备份通过重命名完成，不拷贝任何数据；
+   任一步失败都不会丢数据：原文件要么原样保留，要么已安全改名到备份处。 */
+async function saveAtomic(out, backupName){
+  const fh = await state.dirHandle.getFileHandle(state.fileName);
+  if(typeof fh.move !== "function") return false; // 不支持 move → 走方案 B
+  const tmpName = state.fileName + ".saving.tmp";
+  try{ await state.dirHandle.removeEntry(tmpName); }catch(_){ /* 清理可能残留的旧临时文件 */ }
+  const tfh = await state.dirHandle.getFileHandle(tmpName, { create: true });
+  const tw = await tfh.createWritable();
+  try{
+    await tw.write(out);
+    await tw.close();
+  }catch(e){
+    try{ await tw.abort(); }catch(_){}
+    try{ await state.dirHandle.removeEntry(tmpName); }catch(_){}
+    throw e;
+  }
+  await fh.move(backupName);        // 原文件 → 备份（重命名，瞬时）
+  try{
+    await tfh.move(state.fileName); // 临时文件 → 正式文件（重命名，瞬时）
+  }catch(e){
+    try{ await fh.move(state.fileName); }catch(_){ /* 把备份改回正式名，恢复原状 */ }
+    throw e;
+  }
+  return true;
+}
+
+/* 方案 A 失败后的现场还原：若原文件已被改名为备份，则改回来 */
+async function restoreAfterAtomicFailure(backupName){
+  try{
+    const bfh = await state.dirHandle.getFileHandle(backupName);
+    await bfh.move(state.fileName);
+  }catch(_){ /* 备份不存在说明原文件未被改动 */ }
+}
+
+/* 方案 B（不支持 move 的浏览器）：备份与主文件并行写入；
+   主文件用 keepExistingData:false，避免 createWritable 先把原文件整体复制到交换文件 */
+async function saveParallel(out, backupName){
+  if(!state.rawBlob) state.rawBlob = new Blob([state.raw], { type: "text/plain;charset=utf-8" });
+  const backupTask = (async () => {
+    try{
+      const bfh = await state.dirHandle.getFileHandle(backupName, { create: true });
+      const bw = await bfh.createWritable();
+      await bw.write(state.rawBlob);
+      await bw.close();
+    }catch(e){ toast("备份写入失败（已跳过）：" + e.message, "warn"); }
+  })();
+  const mainTask = (async () => {
+    const fh = await state.dirHandle.getFileHandle(state.fileName, { create: true });
+    const w = await fh.createWritable({ keepExistingData: false }); // 不复制原内容，直接新建交换文件
+    await w.write(out);
+    await w.close();
+  })();
+  const [, mainRes] = await Promise.allSettled([backupTask, mainTask]);
+  if(mainRes.status === "rejected") throw mainRes.reason;
+}
 function download(name, content){
   const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
   const a = document.createElement("a");
@@ -480,6 +571,7 @@ function download(name, content){
 /* ---------- 标记修改 ---------- */
 function markDirty(){
   state.dirty = true;
+  state.serializedCache = null; // 数据已变，序列化缓存失效
   updateStatus();
 }
 function updateStatus(){
