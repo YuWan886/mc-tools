@@ -217,3 +217,9 @@ __marimo__/
 md/
 modpack/
 output_server/
+# How to Fish save editor - working dirs (extraction artifacts)
+_decomp_main/
+_decomp_mods/
+_extract/
+_extract/_pip/
+_extract/UnityPy-src/

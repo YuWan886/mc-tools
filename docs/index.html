@@ -1,0 +1,1082 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>How to Fish 存档编辑器</title>
+<style>
+:root{
+  --bg:#0f1419; --bg2:#161d26; --bg3:#1d2733; --bg4:#24303f;
+  --line:#2c3a4d; --txt:#dbe4ee; --dim:#8aa0b5; --dim2:#5c7186;
+  --accent:#3fb9ff; --accent2:#27d3a3; --warn:#ffb84d; --bad:#ff5d6c; --good:#27d3a3;
+  --shadow:0 2px 10px rgba(0,0,0,.35);
+}
+*{box-sizing:border-box; margin:0; padding:0;}
+body{
+  background:radial-gradient(1200px 600px at 50% -10%, #16222e 0%, var(--bg) 55%);
+  color:var(--txt); font-family:"Segoe UI","Microsoft YaHei",system-ui,sans-serif;
+  min-height:100vh; font-size:14px;
+}
+header{
+  display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+  padding:12px 18px; background:rgba(13,18,24,.85); border-bottom:1px solid var(--line);
+  position:sticky; top:0; z-index:50; backdrop-filter:blur(6px);
+}
+header h1{ font-size:17px; font-weight:700; letter-spacing:.5px; margin-right:6px;
+  background:linear-gradient(90deg,#3fb9ff,#27d3a3); -webkit-background-clip:text; background-clip:text; color:transparent;}
+header .sub{ color:var(--dim2); font-size:12px; margin-right:8px;}
+.btn{
+  background:var(--bg3); color:var(--txt); border:1px solid var(--line); border-radius:8px;
+  padding:7px 14px; cursor:pointer; font-size:13px; transition:.15s; font-family:inherit;
+}
+.btn:hover{ background:var(--bg4); border-color:var(--accent);}
+.btn.primary{ background:linear-gradient(135deg,#0e7fb8,#0aa58a); border-color:transparent; color:#fff; font-weight:600;}
+.btn.primary:hover{ filter:brightness(1.15);}
+.btn.danger{ color:var(--bad);}
+.btn:disabled{ opacity:.45; cursor:not-allowed;}
+.spacer{flex:1;}
+#status{ color:var(--dim); font-size:12px;}
+#status .dirty{ color:var(--warn); font-weight:600;}
+#status .ok{ color:var(--good);}
+
+.layout{ display:flex; gap:14px; padding:14px; align-items:flex-start;}
+aside{
+  width:290px; flex-shrink:0; background:var(--bg2); border:1px solid var(--line);
+  border-radius:12px; padding:12px; max-height:calc(100vh - 130px); overflow:auto;
+  position:sticky; top:70px;
+}
+aside h2{ font-size:12px; text-transform:uppercase; color:var(--dim2); letter-spacing:1px; margin-bottom:8px;}
+.save-item{
+  padding:9px 10px; border:1px solid var(--line); border-radius:8px; margin-bottom:6px;
+  cursor:pointer; background:var(--bg3); transition:.12s;
+}
+.save-item:hover{ border-color:var(--accent);}
+.save-item.active{ border-color:var(--accent); background:var(--bg4); box-shadow:inset 0 0 0 1px var(--accent);}
+.save-item .name{ font-weight:600; font-size:13px; display:flex; justify-content:space-between; gap:6px;}
+.save-item .meta{ color:var(--dim); font-size:11px; margin-top:3px; display:flex; gap:8px; flex-wrap:wrap;}
+.save-item .meta b{ color:var(--accent); font-weight:600;}
+.save-item.local{ border-style:dashed;}
+.tag{ font-size:10px; padding:1px 6px; border-radius:6px; background:var(--bg4); color:var(--dim);}
+
+main{ flex:1; min-width:0;}
+.tabs{ display:flex; gap:6px; margin-bottom:12px; flex-wrap:wrap;}
+.tab{
+  padding:8px 16px; background:var(--bg2); border:1px solid var(--line); border-radius:9px;
+  cursor:pointer; color:var(--dim); font-size:13px; transition:.12s;
+}
+.tab:hover{ color:var(--txt);}
+.tab.active{ background:var(--bg4); color:var(--accent); border-color:var(--accent); font-weight:600;}
+.tab .badge{ background:var(--accent); color:#04202e; border-radius:8px; padding:0 6px; margin-left:4px; font-size:11px;}
+
+.panel{ background:var(--bg2); border:1px solid var(--line); border-radius:12px; padding:16px; margin-bottom:14px;}
+.panel h3{ font-size:13px; color:var(--dim); text-transform:uppercase; letter-spacing:1px; margin-bottom:12px; display:flex; align-items:center; gap:8px;}
+.panel h3 .hint{ text-transform:none; letter-spacing:0; color:var(--dim2); font-weight:400; font-size:12px;}
+.grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(190px,1fr)); gap:10px;}
+.field{ display:flex; flex-direction:column; gap:4px;}
+.field label{ font-size:12px; color:var(--dim);}
+.field input[type=number],.field input[type=text],.field select,.field textarea{
+  background:var(--bg3); border:1px solid var(--line); border-radius:7px; color:var(--txt);
+  padding:7px 9px; font-size:13px; font-family:inherit; width:100%;
+}
+.field input:focus,.field select:focus,.field textarea:focus{ outline:none; border-color:var(--accent);}
+.field input.warn{ border-color:var(--warn); background:rgba(255,184,77,.08);}
+.field .unit{ font-size:11px; color:var(--dim2); margin-top:2px;}
+.check-row{ display:flex; align-items:center; gap:8px; padding:6px 8px; border:1px solid var(--line); border-radius:7px; background:var(--bg3); cursor:pointer;}
+.check-row input{ accent-color:var(--accent); width:15px; height:15px; cursor:pointer;}
+.check-row span{ font-size:13px;}
+.check-row .en{ color:var(--dim2); font-size:11px;}
+
+table{ width:100%; border-collapse:collapse; font-size:13px;}
+th{ text-align:left; color:var(--dim); font-weight:600; font-size:11px; text-transform:uppercase; letter-spacing:.5px; padding:6px 8px; border-bottom:1px solid var(--line); white-space:nowrap;}
+td{ padding:5px 8px; border-bottom:1px solid rgba(44,58,77,.5); vertical-align:middle;}
+tr:hover td{ background:rgba(63,185,255,.04);}
+td input[type=number],td input[type=text],td select{
+  background:var(--bg3); border:1px solid var(--line); border-radius:6px; color:var(--txt);
+  padding:5px 7px; font-size:12px; width:100%; min-width:60px; font-family:inherit;
+}
+td input:focus,td select:focus{ outline:none; border-color:var(--accent);}
+td input.warn{ border-color:var(--warn);}
+td .cb{ accent-color:var(--accent); width:14px; height:14px; cursor:pointer;}
+.small-btn{ background:var(--bg3); border:1px solid var(--line); border-radius:6px; color:var(--dim); padding:4px 9px; font-size:12px; cursor:pointer;}
+.small-btn:hover{ color:var(--txt); border-color:var(--accent);}
+.small-btn.danger:hover{ color:var(--bad); border-color:var(--bad);}
+
+.player-card{ border:1px solid var(--line); border-radius:10px; background:var(--bg3); margin-bottom:14px; overflow:hidden;}
+.player-card .phead{ display:flex; align-items:center; gap:10px; padding:10px 14px; background:var(--bg4);}
+.player-card .phead .pid{ font-weight:700; font-size:14px;}
+.player-card .pbody{ padding:14px;}
+
+.toasts{ position:fixed; right:16px; bottom:16px; z-index:200; display:flex; flex-direction:column; gap:8px;}
+.toast{
+  background:var(--bg3); border:1px solid var(--line); border-left:4px solid var(--accent);
+  border-radius:9px; padding:11px 16px; min-width:240px; max-width:380px; box-shadow:var(--shadow);
+  font-size:13px; animation:slidein .18s ease;
+}
+.toast.err{ border-left-color:var(--bad);}
+.toast.ok{ border-left-color:var(--good);}
+.toast.warn{ border-left-color:var(--warn);}
+@keyframes slidein{ from{ transform:translateX(30px); opacity:0;} to{ transform:none; opacity:1;}}
+
+.rawbox{ width:100%; min-height:420px; background:#0b1016; color:#b9f6ca; border:1px solid var(--line);
+  border-radius:10px; padding:12px; font-family:Consolas,Menlo,monospace; font-size:12.5px; line-height:1.5; resize:vertical;}
+.rawbox:focus{ outline:none; border-color:var(--accent);}
+.btnrow{ display:flex; gap:8px; margin-top:10px; flex-wrap:wrap;}
+
+.jumbo{ display:flex; flex-direction:column; align-items:center; justify-content:center; padding:70px 20px; text-align:center; color:var(--dim); gap:14px;}
+.jumbo .big{ font-size:44px;}
+.jumbo h2{ color:var(--txt); font-size:20px;}
+.jumbo p{ max-width:520px; line-height:1.7; font-size:13px;}
+.jumbo .btn{ font-size:14px; padding:10px 22px;}
+
+#backdrop{ position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:100; display:none; align-items:center; justify-content:center;}
+#backdrop.show{ display:flex;}
+.modal{ background:var(--bg2); border:1px solid var(--line); border-radius:14px; padding:22px; width:420px; max-width:92vw; box-shadow:var(--shadow);}
+.modal h3{ margin-bottom:12px; font-size:16px;}
+.modal p{ color:var(--dim); font-size:13px; line-height:1.7; margin-bottom:14px;}
+.modal .btnrow{ justify-content:flex-end;}
+
+details{ border:1px solid var(--line); border-radius:8px; background:var(--bg3); margin-bottom:8px;}
+details summary{ padding:9px 12px; cursor:pointer; font-size:13px; color:var(--dim); font-weight:600;}
+details[open] summary{ border-bottom:1px solid var(--line); color:var(--txt);}
+details .dbody{ padding:12px;}
+.color-grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(170px,1fr)); gap:8px;}
+.color-cell{ display:flex; flex-direction:column; gap:4px;}
+.color-cell label{ font-size:11px; color:var(--dim2);}
+.color-cell input[type=color]{ width:100%; height:30px; border:1px solid var(--line); border-radius:6px; background:var(--bg3); cursor:pointer; padding:0;}
+.color-cell input[type=number]{ background:var(--bg3); border:1px solid var(--line); border-radius:6px; color:var(--txt); padding:4px 7px; font-size:12px; width:100%;}
+.empty{ color:var(--dim2); font-size:12px; padding:10px; text-align:center;}
+@media (max-width: 900px){ .layout{ flex-direction:column;} aside{ width:100%; position:static; max-height:none;}}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🎣 How to Fish 存档编辑器</h1>
+  <span class="sub">Dazed Games · How to Fish</span>
+  <button class="btn primary" id="btnOpenDir">📂 打开存档文件夹</button>
+  <button class="btn" id="btnOpenFile">📄 打开存档文件</button>
+  <button class="btn" id="btnNewLocal">➕ 新建 local.txt</button>
+  <span class="spacer"></span>
+  <span id="status">未打开存档</span>
+  <button class="btn primary" id="btnSave" disabled>💾 保存</button>
+</header>
+
+<div class="layout">
+  <aside>
+    <h2>存档列表</h2>
+    <div id="saveList"><div class="empty">点击「打开存档文件夹」选择游戏存档目录<br>(Saves 文件夹)，或直接打开单个 .txt</div></div>
+  </aside>
+
+  <main>
+    <!-- empty state -->
+    <div id="emptyState" class="jumbo">
+      <div class="big">🐟</div>
+      <h2>欢迎使用 How to Fish 存档编辑器</h2>
+      <p>存档位置：<code>C:\Users\&lt;用户名&gt;\AppData\LocalLow\Dazed Games\How to Fish\Saves</code><br>
+      支持编辑世界存档（金钱 / 岛屿 / 玩家 / 背包 / 鱼饵）与 <code>local.txt</code>（外观 / 皮肤 / 图鉴 / 语言）。<br>
+      推荐使用 <b>Chrome 或 Edge</b> 浏览器：可直接原地保存并自动备份；其他浏览器会降级为下载方式。<br>
+      保存前编辑器会自动保留原文件备份（<code>.bak-时间戳</code>）。</p>
+      <div style="display:flex; gap:10px;">
+        <button class="btn primary" id="btnOpenDir2">📂 打开存档文件夹</button>
+        <button class="btn" id="btnOpenFile2">📄 打开存档文件</button>
+      </div>
+    </div>
+
+    <!-- editor (hidden until a save is open) -->
+    <div id="editor" style="display:none;">
+      <div class="tabs" id="tabs"></div>
+      <div id="tabBody"></div>
+    </div>
+  </main>
+</div>
+
+<div id="backdrop"><div class="modal" id="modal"></div></div>
+<div class="toasts" id="toasts"></div>
+
+<script>
+"use strict";
+/* ============================================================
+   How to Fish 存档编辑器 · 单文件版
+   数据来源：游戏程序集反编译 + 资源文件提取（UnityPy）
+   物品/鱼饵名称已与玩家存档交叉验证
+   ============================================================ */
+
+/* ---------- 数据表（提取自游戏资源，中英双语） ---------- */
+const ITEMS = {
+  0:["Angelfish","神仙鱼"], 1:["Anglerfish","鮟鱇"], 2:["Bass","鲈鱼"], 3:["Blobfish","水滴鱼"],
+  4:["Bluegill","蓝鳃太阳鱼"], 5:["Albatross","信天翁"], 6:["Blue Shark","蓝鲨"], 7:["Bowhead Whale","弓头鲸"],
+  8:["The Old Pike","大狗鱼"], 9:["Giant Piranha","大食人鲳"], 10:["Goblin Shark","哥布林鲨"],
+  11:["Mutated Bowhead Whale","变异弓头鲸"], 12:["Pufferfish","河鲀"], 13:["Spider Crab","蜘蛛蟹"],
+  14:["Sunfish","翻车鱼"], 15:["Tuna","金枪鱼"], 16:["Bowlfish","缸中鱼"], 17:["Catfish","鲶鱼"],
+  18:["Clam","肉蚌"], 19:["Clownfish","小丑鱼"], 20:["Cod","鳕鱼"], 21:["Brown Crab","棕蟹"],
+  22:["Dripper","走地鱼"], 23:["Eel","鳗鱼"], 24:["Flying Fish","飞鱼"], 25:["Footsnail","深海蜗牛"],
+  26:["Gar","雀鳝"], 27:["Goby","刺鳍鱼"], 28:["Goldfish","金鱼"], 29:["Halibut","比目鱼"],
+  30:["? Unknown","未知鱼类"], 31:["Leech","蚂蟥"], 32:["Lobster","龙虾"], 33:["Mackerel","鲭鱼"],
+  34:["Needlefish","针鱼"], 35:["Oarfish","皇带鱼"], 36:["Parrotfish","鹦嘴鱼"], 37:["Perch","河鲈"],
+  38:["Pike","狗鱼"], 39:["Piranha","食人鲳"], 40:["Red Snapper","红鲷鱼"], 41:["Salmon","三文鱼"],
+  42:["Sea Urchin","海胆"], 43:["Seagull","海鸥"], 44:["Seahorse","海马"], 45:["Sengarat","无鳞鲶鱼"],
+  46:["Shrimp","虾子"], 47:["Stonefish","石头鱼"], 48:["Superdwarf Fish","微缩鱼"], 49:["Tigerfish","虎鱼"],
+  50:["Triggerfish","引金鱼"], 51:["Voxelfish","像素鱼"], 52:["Yellow Boxfish","黄箱魨"],
+  53:["Dead Player","尸体"], 54:["Assault Rifle","突击步枪"], 55:["Badball","沙滩排球"], 56:["Beer","啤酒"],
+  57:["Brass Knuckles","铜指虎"], 58:["Brass Knuckles","铜指虎"], 59:["Crab-Fishing Rod","钓蟹竿"],
+  60:["Dynamite","炸药"], 61:["Fishing Rod","钓竿"], 62:["Disc","飞盘"], 63:["Knife","小刀"],
+  64:["Knife","小刀"], 65:["Radar","雷达"], 66:["Pistol","手枪"], 67:["Radio","收音机"],
+  68:["Shotgun","霰弹枪"], 69:["SMG","冲锋枪"], 70:["Sniper Rifle","狙击枪"],
+  71:["Snowball","雪球"], 72:["Snowball","雪球"], 73:["Snowball","雪球"],
+  74:["Albatross Head","信天翁头"], 75:["Giant Piranha Skeleton","大食人鲳骨头"],
+  76:["Pufferfish Fin","河鲀鳍"], 77:["Spider Crab Shell","蜘蛛蟹壳"], 78:["Whale Fin","鲸鱼尾"],
+  79:["Rock Crab","岩蟹"], 80:["Bing Bong","Bing Bong"], 81:["Whale Meat","鲸鱼肉"],
+  82:["Crab Meat","蟹肉"], 83:["Pufferfish Meat","河鲀肉"], 84:["Albatross Meat","信天翁肉"],
+  85:["Piranha Meat","食人鲳肉"]
+};
+const ITEM_MAX = 255; // ItemID 是 byte
+/* OwnedBaits 16 槽位（按游戏内售价排序：AllBaits[0]=空饵 之后按 Cost 升序） */
+const BAITS = [
+  ["鱼桶","FishBucket"], ["热狗","HotDog"], ["蚂蟥饵","Leech Bait"], ["新手饵","Beginner Lure"],
+  ["空酒罐","EmptyBeerCan"], ["标准饵","Standard Lure"], ["新手首领饵","Beginner Boss Lure"],
+  ["专业饵","Professional Lure"], ["胡萝卜","Carrot"], ["标准首领饵","Standard Boss Lure"],
+  ["椰子","Coconut"], ["科技饵","Scientific Lure"], ["专业首领饵","Professional Boss Lure"],
+  ["科技首领饵","Scientific Boss Lure"], ["默认鱼饵","Default Fish Bait"], ["默认蟹饵","Default Crab Bait"]
+];
+/* 配件索引按名称排序推断（GameInfo 按 name 排序）：1=制退器 … 0=无 */
+const ATTACHMENTS = ["无","制退器 Compensator","扩容弹匣 Extended Mag","机械瞄具 Iron Sight",
+  "激光瞄具 Laser Sight","红点瞄具 Red Dot Sight","狙击镜 Sniper Scope","消音器 Suppressor"];
+const LANGUAGES = ["英语 English","瑞典语 Svenska","简体中文","繁体中文","法语 Français","德语 Deutsch",
+  "意大利语 Italiano","日语 日本語","韩语 한국어","波兰语 Polski","巴西葡语 Português (BR)","俄语 Русский",
+  "西语拉美 Español (MX)","西语西班牙 Español (ES)","土耳其语 Türkçe","乌克兰语 Українська"];
+const DIFFICULTIES = ["简单 Easy","默认 Default","困难 Hard"];
+
+/* ---------- 状态 ---------- */
+const state = {
+  kind: null,            // 'world' | 'local'
+  fileName: null,        // 如 鱼来.txt / local.txt
+  dirHandle: null,       // FileSystemDirectoryHandle（可选）
+  raw: null,             // 原始文本
+  data: null,            // 解析后的对象
+  lastSaveRaw: null,     // LastSave 原始数字串（防精度丢失）
+  dirty: false,
+  currentTab: "main",
+  players: []
+};
+
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+const num = v => (typeof v === "number" && isFinite(v)) ? v : 0;
+
+/* ---------- Toast ---------- */
+function toast(msg, type="info"){
+  const t = document.createElement("div");
+  t.className = "toast " + (type === "err" ? "err" : type === "ok" ? "ok" : type === "warn" ? "warn" : "");
+  t.textContent = msg;
+  $("toasts").appendChild(t);
+  setTimeout(()=>{ t.style.opacity = "0"; t.style.transition = "opacity .3s"; setTimeout(()=>t.remove(), 320); }, 4200);
+}
+
+/* ---------- 文件 IO ---------- */
+const supportsFS = "showDirectoryPicker" in window;
+function pickDir(){
+  if(!supportsFS){ toast("当前浏览器不支持「打开文件夹」，请改用「打开存档文件」（或使用 Chrome/Edge）。","warn"); return; }
+  return window.showDirectoryPicker({ id: "htf-saves", mode: "readwrite" });
+}
+function pickFile(){
+  if(supportsFS){
+    return window.showOpenFilePicker({ id: "htf-saves", multiple: true,
+      types: [{ description: "How to Fish 存档", accept: { "text/plain": [".txt"] } }] });
+  }
+  return new Promise((res, rej) => {
+    const inp = document.createElement("input");
+    inp.type = "file"; inp.accept = ".txt"; inp.multiple = true;
+    inp.onchange = () => res([...inp.files]);
+    inp.oncancel = () => rej(new Error("cancelled"));
+    inp.click();
+  });
+}
+
+async function readFileBlob(fileHandle){
+  if(typeof fileHandle.getFile === "function"){
+    const file = await fileHandle.getFile();
+    return file.text();
+  }
+  // 兼容 Firefox 降级路径：直接传入 File 对象
+  if(typeof fileHandle.text === "function") return fileHandle.text();
+  throw new Error("无法读取文件");
+}
+
+$("btnOpenDir").onclick = $("btnOpenDir2").onclick = async () => {
+  try{
+    const dir = await pickDir();
+    if(!dir) return;
+    state.dirHandle = dir;
+    await loadSaveList(dir);
+  }catch(e){ if(String(e).includes("cancel")) return; toast("打开文件夹失败：" + e, "err"); }
+};
+$("btnOpenFile").onclick = $("btnOpenFile2").onclick = async () => {
+  try{
+    const handles = await pickFile();
+    let loaded = false;
+    for(const h of handles){
+      try{
+        const text = await readFileBlob(h);
+        const name = h.name || (h.kind !== undefined ? h.name : h);
+        await openSaveText(text, name, h);
+        loaded = true;
+      }catch(e){ console.warn(e); }
+    }
+    if(!loaded && handles.length) toast("所选文件解析失败，请确认是游戏存档 JSON。","err");
+  }catch(e){ if(String(e).includes("cancel")) return; toast("打开文件失败：" + e, "err"); }
+};
+$("btnNewLocal").onclick = () => {
+  const d = {
+    LocalSkinColor:{x:0.5,y:0.85,z:0.85}, LocalHatColor:{x:0,y:0,z:0}, LocalHatColor2:{x:0,y:0,z:0}, LocalHatColor3:{x:0,y:0,z:0},
+    LocalOutfitColor:{x:0,y:0,z:0}, LocalOutfitColor2:{x:0,y:0,z:0}, LocalOutfitColor3:{x:0,y:0,z:0},
+    LocalAccessoryColor:{x:0,y:0,z:0}, LocalAccessoryColor2:{x:0,y:0,z:0}, LocalAccessoryColor3:{x:0,y:0,z:0},
+    LocalHatIndex:0, LocalOutfitIndex:0, LocalAccessoryIndex:0, IsBean:false, InvertXInput:false, InvertYInput:false,
+    UnlockedItemSkins:[], UnlockedBoatSkins:[], CreaturesToList:[],
+    SeenHats:[false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false],
+    SeenOutfits:[false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false],
+    SeenAccesories:[false,false,false,false,false,false,false,false,false], SavedLanguage:2
+  };
+  openSaveText(JSON.stringify(d), "local.txt", null, {skipList:true});
+};
+
+/* 列出目录内所有存档 */
+async function loadSaveList(dirHandle){
+  const listEl = $("saveList");
+  listEl.innerHTML = '<div class="empty">读取中…</div>';
+  const entries = [];
+  for await (const entry of dirHandle.values()){
+    if(entry.kind !== "file") continue;
+    const name = entry.name;
+    if(!name.toLowerCase().endsWith(".txt")) continue;
+    if(/\.bak-/.test(name) || name.endsWith(".tmp")) continue;
+    entries.push({ handle: entry, name });
+  }
+  entries.sort((a,b)=> a.name.localeCompare(b.name, "zh"));
+  if(!entries.length){ listEl.innerHTML = '<div class="empty">目录中没有找到 .txt 存档</div>'; return; }
+  listEl.innerHTML = "";
+  for(const e of entries){
+    const item = document.createElement("div");
+    item.className = "save-item" + (e.name === "local.txt" ? " local" : "");
+    item.innerHTML = `<div class="name">${esc(e.name)}</div><div class="meta">读取中…</div>`;
+    item.onclick = async () => {
+      try{
+        const text = await readFileBlob(e.handle);
+        await openSaveText(text, e.name, e.handle);
+        [...listEl.children].forEach(c=>c.classList.remove("active"));
+        item.classList.add("active");
+      }catch(err){ toast("读取 " + e.name + " 失败：" + err, "err"); }
+    };
+    // 预读摘要
+    e.handle.getFile().then(f=>f.text()).then(text=>{
+      try{
+        const d = JSON.parse(text);
+        if(d && typeof d === "object" && "Players" in d){
+          item.querySelector(".meta").innerHTML =
+            `<span>💰<b>${num(d.Money)}</b></span><span>🏝️${num(d.SpawnedIsland)}</span><span>👥${(d.Players||[]).length}</span>` +
+            (d.Name ? `<span class="tag">${esc(d.Name)}</span>` : "");
+        }else if(d && "SavedLanguage" in d){
+          item.querySelector(".meta").innerHTML = `<span class="tag">本地设置</span>`;
+        }
+      }catch(e){ item.querySelector(".meta").innerHTML = '<span class="tag">解析失败</span>'; }
+    });
+    listEl.appendChild(item);
+  }
+  toast(`找到 ${entries.length} 个存档文件`);
+}
+
+/* 识别存档类型并打开 */
+function openSaveText(text, name, handle, opts={}){
+  let data;
+  try{ data = JSON.parse(text); }
+  catch(e){ throw new Error("JSON 解析失败：" + e.message); }
+  if(!data || typeof data !== "object") throw new Error("不是有效的存档 JSON");
+  const isLocal = "SavedLanguage" in data || "LocalSkinColor" in data || "CreaturesToList" in data && !("Players" in data);
+  const kind = isLocal ? "local" : "world";
+  if(kind === "world" && !("Players" in data)) throw new Error("无法识别存档类型（既不是世界存档也不是 local.txt）");
+  state.kind = kind;
+  state.fileName = name;
+  state.raw = text;
+  state.data = data;
+  state.dirty = false;
+  state.lastSaveRaw = null;
+  const m = text.match(/"LastSave"\s*:\s*(-?\d+)/);
+  if(m) state.lastSaveRaw = m[1];
+  $("emptyState").style.display = "none";
+  $("editor").style.display = "";
+  $("btnSave").disabled = false;
+  state.currentTab = "main";
+  renderTabs();
+  render();
+  updateStatus();
+  if(!opts.skipList){
+    const listEl = $("saveList");
+    [...listEl.children].forEach(c=>c.classList.remove("active"));
+    // 高亮对应项
+    for(const c of listEl.children){
+      if(c.querySelector(".name") && c.querySelector(".name").textContent === name) c.classList.add("active");
+    }
+  }
+  toast("已打开：" + name, "ok");
+}
+
+/* ---------- 序列化（保留字段顺序与未知字段、防大整数精度丢失） ---------- */
+function serialize(){
+  let s = JSON.stringify(state.data);
+  if(state.lastSaveRaw && typeof state.data.LastSave === "number"){
+    s = s.replace(/"LastSave"\s*:\s*-?\d+/, '"LastSave":' + state.lastSaveRaw);
+  }
+  return s;
+}
+
+/* ---------- 保存 ---------- */
+$("btnSave").onclick = async () => {
+  try{
+    const out = serialize();
+    if(state.dirHandle && supportsFS){
+      // 自动备份：原文件 → .bak-时间戳
+      const now = new Date();
+      const stamp = now.getFullYear().toString().padStart(4,"0") +
+        (now.getMonth()+1).toString().padStart(2,"0") + now.getDate().toString().padStart(2,"0") +
+        "-" + now.getHours().toString().padStart(2,"0") + now.getMinutes().toString().padStart(2,"0") +
+        now.getSeconds().toString().padStart(2,"0");
+      const backupName = state.fileName.replace(/\.txt$/i, "") + ".txt.bak-" + stamp;
+      try{
+        const bfh = await state.dirHandle.getFileHandle(backupName, { create: true });
+        const bw = await bfh.createWritable();
+        await bw.write(state.raw);
+        await bw.close();
+      }catch(e){ toast("备份写入失败（已跳过）：" + e.message, "warn"); }
+      const fh = await state.dirHandle.getFileHandle(state.fileName, { create: true });
+      const w = await fh.createWritable();
+      await w.write(out);
+      await w.close();
+      state.raw = out;
+      state.dirty = false;
+      toast("已保存到 " + state.fileName + "（备份：" + backupName + "）", "ok");
+    }else{
+      // 降级：下载
+      download(state.fileName, out);
+      download(state.fileName.replace(/\.txt$/i, "") + ".txt.bak-未备份", state.raw);
+      state.raw = out;
+      state.dirty = false;
+      toast("已生成下载文件（请将文件放回存档目录）。浏览器不支持原地保存时建议使用 Chrome/Edge。","ok");
+    }
+    updateStatus();
+  }catch(e){
+    if(String(e).includes("AbortError")) return;
+    toast("保存失败：" + e.message, "err");
+  }
+};
+function download(name, content){
+  const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href), 4000);
+}
+
+/* ---------- 标记修改 ---------- */
+function markDirty(){
+  state.dirty = true;
+  updateStatus();
+}
+function updateStatus(){
+  const s = $("status");
+  if(!state.data){ s.textContent = "未打开存档"; return; }
+  s.innerHTML = state.fileName + (state.dirty ? ' <span class="dirty">● 已修改</span>' : ' <span class="ok">✓ 已保存</span>');
+}
+
+/* ---------- 渲染 ---------- */
+function renderTabs(){
+  const tabs = $("tabs");
+  const isLocal = state.kind === "local";
+  const defs = isLocal
+    ? [["main","外观与收集"],["raw","原始 JSON"]]
+    : [["main","世界存档"],["players","玩家"],["raw","原始 JSON"]];
+  tabs.innerHTML = "";
+  for(const [id, label] of defs){
+    const b = document.createElement("button");
+    b.className = "tab" + (id === state.currentTab ? " active" : "");
+    b.textContent = label;
+    b.onclick = () => { state.currentTab = id; renderTabs(); render(); };
+    tabs.appendChild(b);
+  }
+}
+function render(){
+  const body = $("tabBody");
+  if(state.kind === "local"){
+    body.innerHTML = state.currentTab === "raw" ? renderRawTab() : renderLocalTab();
+  }else{
+    body.innerHTML = state.currentTab === "raw" ? renderRawTab()
+      : state.currentTab === "players" ? renderPlayersTab() : renderWorldTab();
+  }
+  if(state.currentTab === "raw") attachRawEvents();
+  else attachFormEvents();
+}
+
+/* ---------- 通用控件生成 ---------- */
+function numField(id, label, value, {min=0, max=null, step=1, unit="", warn=false, title=""}={}){
+  const extra = title ? ` title="${esc(title)}"` : "";
+  return `<div class="field" ${extra}><label>${esc(label)}</label>
+    <input type="number" id="${id}" value="${num(value)}" min="${min}" ${max!==null?`max="${max}"`:""} step="${step}" ${warn?'class="warn"':""}>
+    ${unit?`<div class="unit">${esc(unit)}</div>`:""}</div>`;
+}
+function boolRow(id, label, en, value){
+  return `<label class="check-row"><input type="checkbox" id="${id}" ${value?"checked":""}>
+    <span>${esc(label)}</span><span class="en">${esc(en)}</span></label>`;
+}
+
+/* ---------- 世界存档表单 ---------- */
+function renderWorldTab(){
+  const d = state.data;
+  const playH = (num(d.Playtime) / 3600).toFixed(2);
+  const islandMax = 12;
+  const diffSel = "Difficulty" in d
+    ? `<div class="field"><label>难度 Difficulty</label><select id="f_Difficulty">
+        ${DIFFICULTIES.map((x,i)=>`<option value="${i}" ${num(d.Difficulty)===i?"selected":""}>${x}</option>`).join("")}
+      </select><div class="unit">Easy=0 / Default=1 / Hard=2</div></div>`
+    : "";
+  const lastSave = state.lastSaveRaw ? new Date(Number(state.lastSaveRaw) / 10000 - 62135596800000).toLocaleString() : "—";
+  return `
+  <div class="panel"><h3>经济与进度 <span class="hint">经济 · 进度</span></h3>
+    <div class="grid">
+      ${numField("f_Money","金钱 Money",d.Money,{min:0,step:1})}
+      ${numField("f_PlaytimeH","游戏时间（小时）",playH,{min:0,step:0.01,unit:"存档秒数：" + Math.round(num(d.Playtime))})}
+      ${numField("f_SpawnedIsland","当前岛屿 SpawnedIsland",d.SpawnedIsland,{min:0,max:islandMax,step:1,title:"0 = 第一座岛"})}
+      ${numField("f_MaxIsland","最大岛屿 MaxIsland",d.MaxIsland,{min:0,max:islandMax,step:1,title:"已解锁的最大岛屿索引"})}
+      ${diffSel}
+      ${numField("f_MotorIndex","马达 MotorIndex",d.MotorIndex,{min:0,max:10,step:1})}
+      ${numField("f_BoatSkin","船皮肤 BoatSkin",d.BoatSkin,{min:0,max:255,step:1})}
+      <div class="field"><label>最后保存 LastSave</label><input type="text" value="${esc(lastSave)}" disabled style="opacity:.6"></div>
+    </div>
+  </div>
+  <div class="panel"><h3>存档开关 <span class="hint">Flags</span></h3>
+    <div class="grid">
+      ${boolRow("f_UnlockedGrill","解锁烤架","UnlockedGrill",d.UnlockedGrill)}
+      ${boolRow("f_UnlockedBoat","解锁船","UnlockedBoat",d.UnlockedBoat)}
+      ${boolRow("f_UnlockedBoatRadar","解锁船雷达","UnlockedBoatRadar",d.UnlockedBoatRadar)}
+      ${boolRow("f_FinalBossKilled","已击杀最终 Boss","FinalBossKilled",d.FinalBossKilled)}
+      ${boolRow("f_HasFinishedGame","已通关","HasFinishedGame",d.HasFinishedGame)}
+      ${boolRow("f_UseSteam","使用 Steam","UseSteam",d.UseSteam)}
+      ${boolRow("f_IsPublic","公开存档","IsPublic",d.IsPublic)}
+    </div>
+  </div>
+  <div class="panel"><h3>存档信息 <span class="hint">Name</span></h3>
+    <div class="grid">
+      <div class="field"><label>存档名 Name</label><input type="text" id="f_Name" value="${esc(d.Name||"")}">
+        <div class="unit">⚠ 游戏以 Name 作为文件名；改名后游戏下次保存会生成新文件</div></div>
+    </div>
+  </div>
+  <div class="panel"><h3>⚡ 一键功能</h3>
+    <div class="btnrow">
+      <button class="btn primary" data-once="money">💰 金钱改满</button>
+      <button class="btn" data-once="islands">🏝️ 全部岛屿解锁</button>
+      <button class="btn" data-once="status">❤️ 全员满状态</button>
+    </div>
+    <div class="unit" style="color:var(--dim2); font-size:11px; margin-top:8px;">全图鉴 / 皮肤解锁在 local.txt 中提供（它们是本地解锁数据，不属于世界存档）</div>
+  </div>`;
+}
+
+/* ---------- 玩家表单 ---------- */
+function renderPlayersTab(){
+  const d = state.data;
+  const players = Array.isArray(d.Players) ? d.Players : [];
+  if(!players.length) return `<div class="panel"><div class="empty">存档中没有玩家数据</div></div>`;
+  return players.map((p, pi) => {
+    const inv = Array.isArray(p.InventoryItems) ? p.InventoryItems : [];
+    const ownBaits = Array.isArray(p.OwnedBaits) ? p.OwnedBaits : new Array(BAITS.length).fill(0);
+    const held = p.HeldItem || {};
+    const last4 = String(p.SteamID||"").slice(-4);
+    return `
+    <div class="player-card">
+      <div class="phead">
+        <span class="pid">玩家 ${pi+1}</span>
+        <span class="tag">SteamID …${last4}</span>
+        <span class="spacer"></span>
+        <button class="small-btn" data-delplayer="${pi}">移除玩家</button>
+      </div>
+      <div class="pbody">
+        <div class="grid" style="margin-bottom:12px;">
+          ${numField(`p${pi}_Health`,"生命 Health（10~100）",p.Health,{min:10,max:100,step:1,warn:num(p.Health)<10||num(p.Health)>100})}
+          ${numField(`p${pi}_Fullness`,"饱食度 Fullness（0~100）",p.Fullness,{min:0,max:100,step:1,warn:num(p.Fullness)<0||num(p.Fullness)>100})}
+          ${numField(`p${pi}_ExtraSlots`,"额外背包格 ExtraSlots",p.ExtraSlots,{min:0,max:10,step:1})}
+          <label class="check-row" style="align-self:end;"><input type="checkbox" id="p${pi}_Tut" ${p.HasFinishedTutorial?"checked":""}><span>已完成教程</span><span class="en">HasFinishedTutorial</span></label>
+        </div>
+        <h4 style="color:var(--dim); font-size:12px; margin:10px 0 6px;">手持物品 HeldItem</h4>
+        <div class="grid" style="margin-bottom:14px;">
+          ${itemSelect(`ph${pi}_Item`,`ph${pi}_ID`, held.ItemID)}
+          ${numField(`ph${pi}_Skin`,"皮肤 SkinIndex",held.SkinIndex,{min:0,max:255,step:1})}
+          ${numField(`ph${pi}_Cook`,"烹饪度 Cookness",held.Cookness,{min:0,max:2,step:0.01})}
+          ${numField(`ph${pi}_Weight`,"重量 Weight",held.Weight,{min:0,step:0.01})}
+        </div>
+        <h4 style="color:var(--dim); font-size:12px; margin:10px 0 6px;">背包 InventoryItems（${inv.length}）</h4>
+        <table>
+          <tr><th style="width:26px">槽</th><th style="min-width:170px">物品</th><th>皮肤</th><th>锋利度</th><th>烹饪</th><th>重量</th>
+              <th>弹药</th><th>枪管</th><th>瞄具</th><th>扩容</th><th>激光</th><th>极品</th><th style="width:30px"></th></tr>
+          ${inv.map((it, ii) => rowForItem(pi, ii, it)).join("")}
+        </table>
+        <div class="btnrow" style="margin-top:8px;">
+          <button class="small-btn" data-additem="${pi}">＋ 添加物品</button>
+          <button class="small-btn danger" data-clearnv="${pi}">清空背包</button>
+        </div>
+        <h4 style="color:var(--dim); font-size:12px; margin:14px 0 6px;">鱼饵 OwnedBaits（数量）</h4>
+        <div class="grid">
+          ${BAITS.map((b, bi) => numField(`p${pi}_bait${bi}`, `${bi+1}. ${b[0]}`, ownBaits[bi]!==undefined?ownBaits[bi]:0, {min:0, step:1})).join("")}
+        </div>
+        <div class="unit" style="color:var(--dim2); font-size:11px; margin-top:6px;">鱼饵槽位顺序按游戏内售价排序（与存档保存顺序一致）</div>
+      </div>
+    </div>`;
+  }).join("");
+}
+
+function itemSelect(idSel, idNum, value){
+  const v = num(value);
+  const name = ITEMS[v] ? `${ITEMS[v][1]} ${ITEMS[v][0]}` : (v ? `未知 (ID ${v})` : "空");
+  const opts = Object.keys(ITEMS).map(k => {
+    const [en, zh] = ITEMS[k];
+    return `<option value="${k}" ${String(k)===String(v)?"selected":""}>${zh} · ${en}（ID ${k}）</option>`;
+  }).join("");
+  return `
+  <div class="field"><label>物品（下拉选名称，或直接填 ID）</label>
+    <select id="${idSel}"><option value="">— 自定义 —</option>${opts}</select></div>
+  <div class="field"><label>物品 ID ItemID</label><input type="number" id="${idNum}" value="${v}" min="0" max="255" step="1">
+    <div class="unit">${esc(name)}</div></div>`;
+}
+
+function rowForItem(pi, ii, it){
+  const v = num(it.ItemID);
+  const name = ITEMS[v] ? `${ITEMS[v][1]} ${ITEMS[v][0]}` : (v ? `ID ${v}` : "空");
+  return `<tr>
+    <td><input type="number" class="is" value="${num(it.InventorySlot)}" min="0" max="255" step="1" data-p="${pi}" data-i="${ii}" data-f="InventorySlot"></td>
+    <td><div style="display:flex; gap:4px; align-items:center;">
+        <select data-p="${pi}" data-i="${ii}" data-f="ID_SEL" style="flex:1">
+          <option value="">— 自定义 —</option>
+          ${Object.keys(ITEMS).map(k=>`<option value="${k}" ${String(k)===String(v)?"selected":""}>${ITEMS[k][1]} · ${ITEMS[k][0]}（ID ${k}）</option>`).join("")}
+        </select>
+        <input type="number" data-p="${pi}" data-i="${ii}" data-f="ItemID" value="${v}" min="0" max="255" step="1" style="width:64px" title="${esc(name)}">
+      </div></td>
+    <td><input type="number" data-p="${pi}" data-i="${ii}" data-f="SkinIndex" value="${num(it.SkinIndex)}" min="0" max="255" step="1" style="width:56px"></td>
+    <td><input type="number" data-p="${pi}" data-i="${ii}" data-f="Sharpness" value="${num(it.Sharpness)}" min="0" max="255" step="1" style="width:56px"></td>
+    <td><input type="number" data-p="${pi}" data-i="${ii}" data-f="Cookness" value="${num(it.Cookness)}" min="0" max="2" step="0.01" style="width:64px"></td>
+    <td><input type="number" data-p="${pi}" data-i="${ii}" data-f="Weight" value="${num(it.Weight)}" min="0" step="0.01" style="width:64px"></td>
+    <td><select data-p="${pi}" data-i="${ii}" data-f="AmmoType" style="width:70px">
+          ${[0,1,2,3,4,5].map(a=>`<option value="${a}" ${num(it.AmmoType)===a?"selected":""}>${a===0?"无":a}</option>`).join("")}
+        </select></td>
+    <td><select data-p="${pi}" data-i="${ii}" data-f="BarrelAttachment" style="width:90px">
+          ${ATTACHMENTS.map((a,ai)=>`<option value="${ai}" ${num(it.BarrelAttachment)===ai?"selected":""}>${ai===0?"无":a}</option>`).join("")}
+        </select></td>
+    <td><select data-p="${pi}" data-i="${ii}" data-f="Sight" style="width:90px">
+          ${ATTACHMENTS.map((a,ai)=>`<option value="${ai}" ${num(it.Sight)===ai?"selected":""}>${ai===0?"无":a}</option>`).join("")}
+        </select></td>
+    <td style="text-align:center"><input type="checkbox" class="cb" data-p="${pi}" data-i="${ii}" data-f="ExtendedMag" ${it.ExtendedMag?"checked":""}></td>
+    <td style="text-align:center"><input type="checkbox" class="cb" data-p="${pi}" data-i="${ii}" data-f="LaserSight" ${it.LaserSight?"checked":""}></td>
+    <td style="text-align:center"><input type="checkbox" class="cb" data-p="${pi}" data-i="${ii}" data-f="IsDripCreature" ${it.IsDripCreature?"checked":""}></td>
+    <td><button class="small-btn danger" data-delitem="${pi}:${ii}">✕</button></td>
+  </tr>`;
+}
+
+/* ---------- local.txt 表单 ---------- */
+const COLOR_FIELDS = [
+  ["LocalSkinColor","肤色 Skin"], ["LocalHatColor","帽子颜色 1"], ["LocalHatColor2","帽子颜色 2"], ["LocalHatColor3","帽子颜色 3"],
+  ["LocalOutfitColor","服装颜色 1"], ["LocalOutfitColor2","服装颜色 2"], ["LocalOutfitColor3","服装颜色 3"],
+  ["LocalAccessoryColor","配饰颜色 1"], ["LocalAccessoryColor2","配饰颜色 2"], ["LocalAccessoryColor3","配饰颜色 3"]
+];
+function vecToHex(v){ return "#" + [v.x, v.y, v.z].map(c => clamp(Math.round(num(c)*255),0,255).toString(16).padStart(2,"0")).join(""); }
+function hexToVec(hex){
+  const n = parseInt(hex.slice(1), 16);
+  return { x: ((n>>16)&255)/255, y: ((n>>8)&255)/255, z: (n&255)/255 };
+}
+
+function renderLocalTab(){
+  const d = state.data;
+  const skins = Array.isArray(d.UnlockedItemSkins) ? d.UnlockedItemSkins : [];
+  const boatSkins = Array.isArray(d.UnlockedBoatSkins) ? d.UnlockedBoatSkins : [];
+  const creatures = Array.isArray(d.CreaturesToList) ? d.CreaturesToList : [];
+  const seenHats = Array.isArray(d.SeenHats) ? d.SeenHats : [];
+  const seenOutfits = Array.isArray(d.SeenOutfits) ? d.SeenOutfits : [];
+  const seenAcc = Array.isArray(d.SeenAccesories) ? d.SeenAccesories : [];
+  return `
+  <div class="panel"><h3>角色外观 <span class="hint">Appearance</span></h3>
+    <div class="grid" style="margin-bottom:12px;">
+      ${numField("l_Hat","帽子 LocalHatIndex",d.LocalHatIndex,{min:0,max:255,step:1})}
+      ${numField("l_Outfit","服装 LocalOutfitIndex",d.LocalOutfitIndex,{min:0,max:255,step:1})}
+      ${numField("l_Acc","配饰 LocalAccessoryIndex",d.LocalAccessoryIndex,{min:0,max:255,step:1})}
+      ${boolRow("l_Bean","豆人模式","IsBean",d.IsBean)}
+      ${boolRow("l_InvX","反转 X 输入","InvertXInput",d.InvertXInput)}
+      ${boolRow("l_InvY","反转 Y 输入","InvertYInput",d.InvertYInput)}
+    </div>
+    <h4 style="color:var(--dim); font-size:12px; margin:10px 0 6px;">颜色（0~1）</h4>
+    <div class="color-grid">
+      ${COLOR_FIELDS.map(([key, label]) => {
+        const v = d[key] || {x:0,y:0,z:0};
+        return `<div class="color-cell"><label>${label}</label>
+          <input type="color" data-color="${key}" value="${vecToHex(v)}">
+          <input type="number" data-colorv="${key}" value="${num(v.x).toFixed(3)}" step="0.01" min="0" max="1" title="R"></div>`;
+      }).join("")}
+    </div>
+  </div>
+  <div class="panel"><h3>已解锁皮肤 <span class="hint">Skins</span></h3>
+    <table>
+      <tr><th>物品</th><th>已解锁皮肤索引</th><th style="width:60px"></th></tr>
+      ${skins.map((s, si) => {
+        const nm = ITEMS[num(s.ID)] ? `${ITEMS[num(s.ID)][1]} ${ITEMS[num(s.ID)][0]}` : `ID ${num(s.ID)}`;
+        return `<tr>
+          <td><div style="display:flex; gap:4px; align-items:center;">
+            <select data-skinitem="${si}" style="flex:1"><option value="">— 自定义 —</option>
+              ${Object.keys(ITEMS).map(k=>`<option value="${k}" ${String(k)===String(num(s.ID))?"selected":""}>${ITEMS[k][1]} · ${ITEMS[k][0]}（ID ${k}）</option>`).join("")}
+            </select>
+            <input type="number" data-skinid="${si}" value="${num(s.ID)}" min="0" max="255" step="1" style="width:64px">
+          </div></td>
+          <td><input type="text" data-skins="${si}" value="${(s.SkinsUnlocked||[]).join(",")}" style="width:100%" placeholder="如 1,2,10,14"></td>
+          <td><button class="small-btn danger" data-delskin="${si}">✕</button></td>
+        </tr>`;
+      }).join("")}
+    </table>
+    ${skins.length ? "" : '<div class="empty">暂无已解锁物品皮肤</div>'}
+    <div class="btnrow">
+      <button class="small-btn" data-addskin>＋ 添加物品皮肤</button>
+    </div>
+    <h4 style="color:var(--dim); font-size:12px; margin:14px 0 6px;">已解锁船皮肤 UnlockedBoatSkins</h4>
+    <div style="display:flex; gap:6px; flex-wrap:wrap; align-items:center;">
+      ${boatSkins.map((b, bi) => `<span style="display:inline-flex; gap:4px; align-items:center; background:var(--bg3); border:1px solid var(--line); border-radius:6px; padding:3px 8px;">皮肤 ${b} <button class="small-btn danger" data-delboat="${bi}">✕</button></span>`).join("")}
+      ${boatSkins.length ? "" : '<span class="empty" style="padding:4px">暂无</span>'}
+      <input type="number" id="l_newBoat" min="0" max="255" step="1" value="1" style="width:64px; background:var(--bg3); border:1px solid var(--line); border-radius:6px; color:var(--txt); padding:5px 7px;">
+      <button class="small-btn" data-addboat>＋ 添加船皮肤</button>
+    </div>
+  </div>
+  <div class="panel"><h3>图鉴 CreaturesToList <span class="hint">击杀记录</span></h3>
+    <div class="btnrow" style="margin-bottom:10px;">
+      <button class="btn primary" data-once="journal">📖 全图鉴解锁（含极品击杀）</button>
+      <button class="small-btn" data-journal-clear>清空图鉴</button>
+    </div>
+    <table>
+      <tr><th style="width:40px">ID</th><th>生物</th><th style="width:70px">已击杀</th><th style="width:90px">极品击杀</th><th style="width:50px"></th></tr>
+      ${creatures.map((c, ci) => {
+        const nm = ITEMS[num(c.ID)] ? `${ITEMS[num(c.ID)][1]} ${ITEMS[num(c.ID)][0]}` : `ID ${num(c.ID)}`;
+        return `<tr>
+          <td>${num(c.ID)}</td><td>${esc(nm)}</td>
+          <td style="text-align:center"><input type="checkbox" class="cb" data-jk="${ci}:k" ${c.BeenKilled?"checked":""}></td>
+          <td style="text-align:center"><input type="checkbox" class="cb" data-jk="${ci}:d" ${c.KilledDrip?"checked":""}></td>
+          <td><button class="small-btn danger" data-delcreature="${ci}">✕</button></td>
+        </tr>`;
+      }).join("")}
+    </table>
+    ${creatures.length ? "" : '<div class="empty">图鉴为空</div>'}
+  </div>
+  <div class="panel"><h3>已见服饰 <span class="hint">Seen</span></h3>
+    <div style="display:flex; gap:16px; flex-wrap:wrap;">
+      <div><b style="font-size:12px; color:var(--dim);">帽子 SeenHats</b><div class="check-row" style="margin-top:6px;"><span>全选</span><input type="checkbox" data-seen-all="SeenHats"></div>
+        ${seenHats.map((v,i)=>`<label class="check-row" style="margin-top:4px;"><input type="checkbox" data-seen="SeenHats:${i}" ${v?"checked":""}><span>帽子 ${i+1}</span></label>`).join("")}
+      </div>
+      <div><b style="font-size:12px; color:var(--dim);">服装 SeenOutfits</b><div class="check-row" style="margin-top:6px;"><span>全选</span><input type="checkbox" data-seen-all="SeenOutfits"></div>
+        ${seenOutfits.map((v,i)=>`<label class="check-row" style="margin-top:4px;"><input type="checkbox" data-seen="SeenOutfits:${i}" ${v?"checked":""}><span>服装 ${i+1}</span></label>`).join("")}
+      </div>
+      <div><b style="font-size:12px; color:var(--dim);">配饰 SeenAccesories</b><div class="check-row" style="margin-top:6px;"><span>全选</span><input type="checkbox" data-seen-all="SeenAccesories"></div>
+        ${seenAcc.map((v,i)=>`<label class="check-row" style="margin-top:4px;"><input type="checkbox" data-seen="SeenAccesories:${i}" ${v?"checked":""}><span>配饰 ${i+1}</span></label>`).join("")}
+      </div>
+    </div>
+  </div>
+  <div class="panel"><h3>语言 SavedLanguage</h3>
+    <div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(220px,1fr));">
+      <div class="field"><label>界面语言</label><select id="l_Lang">
+        ${LANGUAGES.map((x,i)=>`<option value="${i}" ${num(d.SavedLanguage)===i?"selected":""}>${x}</option>`).join("")}
+      </select></div>
+    </div>
+  </div>
+  <div class="panel"><h3>⚡ 一键功能</h3>
+    <div class="btnrow">
+      <button class="btn primary" data-once="journal">📖 全图鉴解锁</button>
+      <button class="btn" data-once="skins">🎨 全部皮肤解锁</button>
+      <button class="btn" data-once="boatskins">🚤 全部船皮肤解锁</button>
+    </div>
+  </div>`;
+}
+
+/* ---------- 原始 JSON ---------- */
+function renderRawTab(){
+  const s = serialize();
+  return `<div class="panel"><h3>原始 JSON <span class="hint">直接查看 / 编辑完整存档（含编辑器未覆盖的字段）</span></h3>
+    <textarea class="rawbox" id="rawBox" spellcheck="false">${esc(s)}</textarea>
+    <div class="btnrow">
+      <button class="btn primary" id="rawApply">应用修改（解析并刷新表单）</button>
+      <button class="btn" id="rawReload">从表单重新生成</button>
+      <button class="btn" id="rawFormat">格式化</button>
+    </div>
+    <div class="unit" style="color:var(--dim2); font-size:11px; margin-top:8px;">
+      提示：此处修改会直接写入存档。LastSave 等大整数会被原样保留，不受 JS 精度影响。
+    </div>
+  </div>`;
+}
+function attachRawEvents(){
+  $("rawApply").onclick = () => {
+    const t = $("rawBox").value;
+    try{
+      const parsed = JSON.parse(t);
+      if(("Players" in parsed) !== (state.kind === "world")) throw new Error("JSON 类型与当前存档不一致");
+      state.data = parsed;
+      state.raw = t;
+      state.lastSaveRaw = null;
+      const m = t.match(/"LastSave"\s*:\s*(-?\d+)/);
+      if(m) state.lastSaveRaw = m[1];
+      state.dirty = true;
+      renderTabs(); render(); updateStatus();
+      toast("已应用 JSON 修改","ok");
+    }catch(e){ toast("JSON 解析失败：" + e.message,"err"); }
+  };
+  $("rawReload").onclick = () => { $("rawBox").value = serialize(); toast("已从表单重新生成","ok"); };
+  $("rawFormat").onclick = () => {
+    try{ $("rawBox").value = JSON.stringify(JSON.parse($("rawBox").value), null, 2); }
+    catch(e){ toast("JSON 无效","err"); }
+  };
+}
+
+/* ---------- 表单事件 ---------- */
+function attachFormEvents(){
+  const d = state.data;
+
+  // 世界存档字段
+  const bindNum = (id, getter, setter, {min=null, max=null, warn=false}={}) => {
+    const el = $(id);
+    if(!el) return;
+    el.oninput = () => {
+      let v = parseFloat(el.value);
+      if(isNaN(v)) return;
+      if(min !== null && v < min){ v = min; el.value = min; el.classList.add("warn"); }
+      if(max !== null && v > max){ v = max; el.value = max; el.classList.add("warn"); }
+      if(v >= min && v <= max) el.classList.remove("warn");
+      setter(v);
+      markDirty();
+    };
+  };
+  const bindBool = (id, setter) => {
+    const el = $(id);
+    if(!el) return;
+    el.onchange = () => { setter(el.checked); markDirty(); };
+  };
+
+  if(state.kind === "world"){
+    bindNum("f_Money", ()=>d.Money, v=>d.Money = v, {min:0});
+    bindNum("f_PlaytimeH", null, v=>{ d.Playtime = v*3600; markDirty(); }, {min:0});
+    bindNum("f_SpawnedIsland", ()=>d.SpawnedIsland, v=>d.SpawnedIsland = v, {min:0, max:12});
+    bindNum("f_MaxIsland", ()=>d.MaxIsland, v=>d.MaxIsland = v, {min:0, max:12});
+    bindNum("f_MotorIndex", ()=>d.MotorIndex, v=>d.MotorIndex = v, {min:0, max:10});
+    bindNum("f_BoatSkin", ()=>d.BoatSkin, v=>d.BoatSkin = v, {min:0, max:255});
+    if($("f_Difficulty")) $("f_Difficulty").onchange = e => { d.Difficulty = parseInt(e.target.value); markDirty(); };
+    const fName = $("f_Name");
+    if(fName) fName.oninput = () => { d.Name = fName.value; markDirty(); };
+    bindBool("f_UnlockedGrill", v=>d.UnlockedGrill = v);
+    bindBool("f_UnlockedBoat", v=>d.UnlockedBoat = v);
+    bindBool("f_UnlockedBoatRadar", v=>d.UnlockedBoatRadar = v);
+    bindBool("f_FinalBossKilled", v=>d.FinalBossKilled = v);
+    bindBool("f_HasFinishedGame", v=>d.HasFinishedGame = v);
+    bindBool("f_UseSteam", v=>d.UseSteam = v);
+    bindBool("f_IsPublic", v=>d.IsPublic = v);
+  }
+
+  // 玩家字段
+  const players = Array.isArray(d.Players) ? d.Players : [];
+  players.forEach((p, pi) => {
+    bindNum(`p${pi}_Health`, ()=>p.Health, v=>p.Health = clamp(Math.round(v),10,100), {min:10, max:100});
+    bindNum(`p${pi}_Fullness`, ()=>p.Fullness, v=>p.Fullness = clamp(Math.round(v),0,100), {min:0, max:100});
+    bindNum(`p${pi}_ExtraSlots`, ()=>p.ExtraSlots, v=>p.ExtraSlots = clamp(Math.round(v),0,255), {min:0, max:255});
+    bindBool(`p${pi}_Tut`, v=>p.HasFinishedTutorial = v);
+    // 手持物品
+    const hSel = $(`ph${pi}_Item`), hID = $(`ph${pi}_ID`);
+    if(hSel) hSel.onchange = () => { p.HeldItem = p.HeldItem || {}; p.HeldItem.ItemID = parseInt(hSel.value)||0; p.HeldItem.Exists = true; hID.value = p.HeldItem.ItemID; markDirty(); };
+    if(hID) hID.oninput = () => { p.HeldItem = p.HeldItem || {}; p.HeldItem.ItemID = clamp(parseInt(hID.value)||0,0,255); p.HeldItem.Exists = true; markDirty(); };
+    bindNum(`ph${pi}_Skin`, ()=>p.HeldItem&&p.HeldItem.SkinIndex, v=>{ p.HeldItem = p.HeldItem||{Exists:false}; p.HeldItem.SkinIndex = v; p.HeldItem.Exists = true; markDirty(); }, {min:0, max:255});
+    bindNum(`ph${pi}_Cook`, ()=>p.HeldItem&&p.HeldItem.Cookness, v=>{ p.HeldItem = p.HeldItem||{Exists:false}; p.HeldItem.Cookness = v; p.HeldItem.Exists = true; markDirty(); }, {min:0, max:2});
+    bindNum(`ph${pi}_Weight`, ()=>p.HeldItem&&p.HeldItem.Weight, v=>{ p.HeldItem = p.HeldItem||{Exists:false}; p.HeldItem.Weight = v; p.HeldItem.Exists = true; markDirty(); }, {min:0});
+    // 鱼饵（确保 16 槽存在）
+    if(!Array.isArray(p.OwnedBaits)) p.OwnedBaits = new Array(BAITS.length).fill(0);
+    p.OwnedBaits.forEach((_, bi) => {
+      bindNum(`p${pi}_bait${bi}`, null, v=>{ p.OwnedBaits[bi] = Math.max(0, Math.round(v)); markDirty(); }, {min:0});
+    });
+    // 背包行
+    (Array.isArray(p.InventoryItems) ? p.InventoryItems : []).forEach((it, ii) => {
+      const bind = f => {
+        const el = document.querySelector(`[data-p="${pi}"][data-i="${ii}"][data-f="${f}"]`);
+        if(!el) return;
+        const apply = () => {
+          if(f === "ItemID"){ it.ItemID = clamp(parseInt(el.value)||0, 0, 255); it.Exists = true; markDirty(); }
+          else if(f === "ID_SEL"){ it.ItemID = parseInt(el.value)||0; it.Exists = true;
+            const numEl = document.querySelector(`[data-p="${pi}"][data-i="${ii}"][data-f="ItemID"]`);
+            if(numEl) numEl.value = it.ItemID; markDirty(); }
+          else if(f === "InventorySlot"){ it.InventorySlot = clamp(parseInt(el.value)||0, 0, 255); markDirty(); }
+          else if(f === "SkinIndex"){ it.SkinIndex = clamp(parseInt(el.value)||0, 0, 255); markDirty(); }
+          else if(f === "Sharpness"){ it.Sharpness = clamp(parseInt(el.value)||0, 0, 255); markDirty(); }
+          else if(f === "Cookness"){ it.Cookness = clamp(parseFloat(el.value)||0, 0, 2); markDirty(); }
+          else if(f === "Weight"){ it.Weight = Math.max(0, parseFloat(el.value)||0); markDirty(); }
+          else if(f === "AmmoType"){ it.AmmoType = parseInt(el.value)||0; markDirty(); }
+          else if(f === "BarrelAttachment"){ it.BarrelAttachment = parseInt(el.value)||0; markDirty(); }
+          else if(f === "Sight"){ it.Sight = parseInt(el.value)||0; markDirty(); }
+        };
+        if(el.type === "checkbox") el.onchange = () => { it[f] = el.checked; markDirty(); };
+        else el.oninput = apply;
+      };
+      ["ItemID","ID_SEL","InventorySlot","SkinIndex","Sharpness","Cookness","Weight","AmmoType","BarrelAttachment","Sight","ExtendedMag","LaserSight","IsDripCreature"].forEach(bind);
+    });
+    const addBtn = document.querySelector(`[data-additem="${pi}"]`);
+    if(addBtn) addBtn.onclick = () => {
+      const empty = (Array.isArray(p.InventoryItems) ? p.InventoryItems : []).length;
+      p.InventoryItems = p.InventoryItems || [];
+      p.InventoryItems.push({ Exists:true, InventorySlot:empty, ItemID:0, Cookness:0, BettingMultiplier:1, Weight:1, KillScoreMultiplier:1, IsDripCreature:false, SkinIndex:0, Sharpness:0, Sight:0, BarrelAttachment:0, AmmoType:0, ExtendedMag:false, LaserSight:false });
+      markDirty(); render();
+    };
+    const delBtn = document.querySelector(`[data-delplayer="${pi}"]`);
+    if(delBtn) delBtn.onclick = () => {
+      if(!confirm("确定移除玩家 " + (pi+1) + " 吗？")) return;
+      d.Players.splice(pi, 1); markDirty(); render();
+    };
+    const clearBtn = document.querySelector(`[data-clearnv="${pi}"]`);
+    if(clearBtn) clearBtn.onclick = () => { p.InventoryItems = []; markDirty(); render(); };
+  });
+
+  // 背包行删除
+  document.querySelectorAll("[data-delitem]").forEach(btn => {
+    btn.onclick = () => {
+      const [pi, ii] = btn.dataset.delitem.split(":").map(Number);
+      d.Players[pi].InventoryItems.splice(ii, 1);
+      markDirty(); render();
+    };
+  });
+
+  // local.txt
+  if(state.kind === "local"){
+    bindNum("l_Hat", ()=>d.LocalHatIndex, v=>d.LocalHatIndex = v, {min:0, max:255});
+    bindNum("l_Outfit", ()=>d.LocalOutfitIndex, v=>d.LocalOutfitIndex = v, {min:0, max:255});
+    bindNum("l_Acc", ()=>d.LocalAccessoryIndex, v=>d.LocalAccessoryIndex = v, {min:0, max:255});
+    bindBool("l_Bean", v=>d.IsBean = v);
+    bindBool("l_InvX", v=>d.InvertXInput = v);
+    bindBool("l_InvY", v=>d.InvertYInput = v);
+    if($("l_Lang")) $("l_Lang").onchange = e => { d.SavedLanguage = parseInt(e.target.value); markDirty(); };
+    // 颜色
+    document.querySelectorAll("[data-color]").forEach(el => {
+      el.oninput = () => {
+        const key = el.dataset.color;
+        const v = hexToVec(el.value);
+        d[key] = { x:+v.x.toFixed(4), y:+v.y.toFixed(4), z:+v.z.toFixed(4) };
+        const numEl = document.querySelector(`[data-colorv="${key}"]`);
+        if(numEl) numEl.value = v.x.toFixed(3);
+        markDirty();
+      };
+    });
+    document.querySelectorAll("[data-colorv]").forEach(el => {
+      el.oninput = () => {
+        const key = el.dataset.colorv;
+        const v = d[key] || {x:0,y:0,z:0};
+        const r = clamp(parseFloat(el.value)||0, 0, 1);
+        d[key] = { x:+r.toFixed(4), y:+v.y.toFixed(4), z:+v.z.toFixed(4) };
+        const colorEl = document.querySelector(`[data-color="${key}"]`);
+        if(colorEl) colorEl.value = vecToHex(d[key]);
+        markDirty();
+      };
+    });
+    // 皮肤
+    const skins = Array.isArray(d.UnlockedItemSkins) ? d.UnlockedItemSkins : [];
+    skins.forEach((s, si) => {
+      const idEl = document.querySelector(`[data-skinid="${si}"]`);
+      const itemEl = document.querySelector(`[data-skinitem="${si}"]`);
+      const listEl = document.querySelector(`[data-skins="${si}"]`);
+      if(idEl) idEl.oninput = () => { s.ID = clamp(parseInt(idEl.value)||0,0,255); markDirty(); };
+      if(itemEl) itemEl.onchange = () => { s.ID = parseInt(itemEl.value)||0; idEl.value = s.ID; markDirty(); };
+      if(listEl) listEl.oninput = () => {
+        s.SkinsUnlocked = listEl.value.split(",").map(x=>parseInt(x.trim())).filter(x=>!isNaN(x) && x>=0 && x<=255);
+        markDirty();
+      };
+    });
+    const addSkin = document.querySelector("[data-addskin]");
+    if(addSkin) addSkin.onclick = () => {
+      d.UnlockedItemSkins = d.UnlockedItemSkins || [];
+      d.UnlockedItemSkins.push({ ID: 0, SkinsUnlocked: [] });
+      markDirty(); render();
+    };
+    document.querySelectorAll("[data-delskin]").forEach(btn => {
+      btn.onclick = () => { d.UnlockedItemSkins.splice(Number(btn.dataset.delskin), 1); markDirty(); render(); };
+    });
+    // 船皮肤
+    const addBoat = document.querySelector("[data-addboat]");
+    if(addBoat) addBoat.onclick = () => {
+      d.UnlockedBoatSkins = d.UnlockedBoatSkins || [];
+      const v = clamp(parseInt($("l_newBoat").value)||0, 0, 255);
+      if(!d.UnlockedBoatSkins.includes(v)){ d.UnlockedBoatSkins.push(v); d.UnlockedBoatSkins.sort((a,b)=>a-b); }
+      markDirty(); render();
+    };
+    document.querySelectorAll("[data-delboat]").forEach(btn => {
+      btn.onclick = () => { d.UnlockedBoatSkins.splice(Number(btn.dataset.delboat), 1); markDirty(); render(); };
+    });
+    // 图鉴
+    const creatures = Array.isArray(d.CreaturesToList) ? d.CreaturesToList : [];
+    document.querySelectorAll("[data-jk]").forEach(el => {
+      el.onchange = () => {
+        const [ci, which] = el.dataset.jk.split(":");
+        if(which === "k"){ d.CreaturesToList[ci].BeenKilled = el.checked; }
+        else { d.CreaturesToList[ci].KilledDrip = el.checked; }
+        markDirty();
+      };
+    });
+    document.querySelectorAll("[data-delcreature]").forEach(btn => {
+      btn.onclick = () => { d.CreaturesToList.splice(Number(btn.dataset.delcreature), 1); markDirty(); render(); };
+    });
+    document.querySelector("[data-journal-clear]").onclick = () => { d.CreaturesToList = []; markDirty(); render(); };
+    // Seen
+    document.querySelectorAll("[data-seen]").forEach(el => {
+      el.onchange = () => {
+        const [key, idx] = el.dataset.seen.split(":");
+        d[key][Number(idx)] = el.checked;
+        markDirty();
+      };
+    });
+    document.querySelectorAll("[data-seen-all]").forEach(el => {
+      el.onchange = () => {
+        const key = el.dataset.seenAll;
+        const arr = d[key];
+        for(let i = 0; i < arr.length; i++) arr[i] = el.checked;
+        markDirty();
+        // 刷新勾选
+        document.querySelectorAll(`[data-seen^="${key}:"]`).forEach(c => c.checked = el.checked);
+      };
+    });
+  }
+
+  // 一键功能
+  document.querySelectorAll("[data-once]").forEach(btn => {
+    btn.onclick = () => applyOnce(btn.dataset.once);
+  });
+}
+
+/* ---------- 一键功能 ---------- */
+function applyOnce(kind){
+  const d = state.data;
+  if(kind === "money" && state.kind === "world"){
+    d.Money = 9999999; markDirty(); render(); toast("金钱已改为 9,999,999","ok");
+  }else if(kind === "islands" && state.kind === "world"){
+    d.MaxIsland = 10; markDirty(); render(); toast("已解锁全部岛屿（MaxIsland=10）","ok");
+  }else if(kind === "status" && state.kind === "world"){
+    (d.Players||[]).forEach(p => { p.Health = 100; p.Fullness = 100; });
+    markDirty(); render(); toast("所有玩家已满血满饱食","ok");
+  }else if(kind === "journal"){
+    // 图鉴只包含生物（鱼/蟹/鲸等），不含武器工具
+    const creatureIds = Object.keys(ITEMS).map(Number).filter(i => (i <= 52) || i === 79 || i === 80).sort((a,b)=>a-b);
+    const existing = new Map((d.CreaturesToList||[]).map(c => [c.ID, c]));
+    d.CreaturesToList = creatureIds.map(id => existing.get(id) || { ID: id, BeenKilled: true, KilledDrip: true });
+    d.CreaturesToList.forEach(c => { c.BeenKilled = true; c.KilledDrip = true; });
+    markDirty(); render(); toast("图鉴已全部解锁（含极品击杀标记）","ok");
+  }else if(kind === "skins"){
+    const ids = Object.keys(ITEMS).map(Number).filter(i => i >= 0 && i <= 85);
+    d.UnlockedItemSkins = ids.map(id => ({ ID: id, SkinsUnlocked: Array.from({length:16}, (_,i)=>i) }));
+    d.UnlockedBoatSkins = Array.from({length:16}, (_,i)=>i);
+    markDirty(); render(); toast("全部物品皮肤 + 船皮肤已解锁（索引 0~15）","ok");
+  }else if(kind === "boatskins"){
+    d.UnlockedBoatSkins = Array.from({length:16}, (_,i)=>i);
+    markDirty(); render(); toast("全部船皮肤已解锁","ok");
+  }
+}
+
+/* ---------- 初始 ---------- */
+updateStatus();
+</script>
+</body>
+</html>
